@@ -1,0 +1,14 @@
+{
+  "name": "ReasonCavalier",
+  "slug": "reason-cavalier",
+  "version": "0.1.0",
+  "description": "Cross-tool AI coding workflow plugin for Cursor and related agents.",
+  "homepage": "https://github.com/liushoukun/reason-cavalier",
+  "entrypoints": {
+    "skills": "../skills",
+    "commands": "../commands",
+    "agents": "../agents",
+    "rules": "../rules",
+    "hooks": "../hooks/hooks.json"
+  }
+}

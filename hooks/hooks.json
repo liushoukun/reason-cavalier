@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": [
+    {
+      "name": "pre-task-clarify",
+      "event": "before_task",
+      "enabled": true,
+      "description": "Prompt for clarification when request is ambiguous."
+    },
+    {
+      "name": "post-task-verify",
+      "event": "after_task",
+      "enabled": true,
+      "description": "Ensure verification steps are reported."
+    }
+  ]
+}

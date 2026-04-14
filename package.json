@@ -1,0 +1,23 @@
+{
+  "name": "reason-cavalier",
+  "version": "0.1.0",
+  "description": "An agentic plugin framework for Cursor, Claude Code, Codex, and similar AI tools.",
+  "private": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liushoukun/reason-cavalier.git"
+  },
+  "keywords": [
+    "cursor",
+    "claude-code",
+    "codex",
+    "ai-agent",
+    "skills",
+    "plugin"
+  ],
+  "scripts": {
+    "check": "echo \"Add checks here\"",
+    "test": "echo \"No tests yet\""
+  }
+}
