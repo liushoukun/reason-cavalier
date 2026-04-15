@@ -1,248 +1,144 @@
-# Skills 规划（v1）
+# Skills
 
-## 1. 目标与参考基线
+## 1. 设计目标
 
-本规划用于定义本项目的 `skills` 体系，使其同时满足：
+本设计面向整个插件技能体系，聚焦技能层面的统一规划，目标如下：
 
-- 借鉴 `superpowers` 的“流程化 + 可组合技能”设计（从 spec/plan 到执行与验收）
-- 借鉴 `DeerFlow` 的“多角色编排 + 长时任务推进”设计（Coordinator/Planner/Researcher/Coder/Reviewer/Reporter）
-- 对齐本项目现有 `task kernel`（`Task`/`Run`、阶段流转、G1~G4 门禁、证据链）
-
-设计结果应服务于：**任务可拆解、执行可编排、结果可审计、跨宿主可复现**。
-
----
-
-## 2. 总体设计原则
-
-
-1. **外层 Coordinator Agent**：设置外层 `Coordinator agent` 作为任务入口，负责理解用户要求、关联任务上下文（创建任务、设置任务 workflow）、驱动阶段推进，并持续记录任务状态与关键证据。
-2. **阶段编排主导**：`workflow` 定义阶段序列、阶段目标与阶段内步骤，统一声明每一步的门禁条件与交付物。
-3. **Agent 按阶段决策**：执行型 `agent` 不重写流程语义，只根据当前阶段目标、输入上下文与交付要求选择并调度合适 `skill`。
-4. **能力原子化与可插拔**：`skill` 只承载单一能力，支持市场/本地实现替换，不影响阶段语义与门禁口径。
-5. **策略外置与契约化**：阈值、质量标准、交付模板通过 `workflow + agent policy` 注入；阶段输入/输出、交付物结构需有统一契约。
-6. **门禁可判定优先**：门禁规则优先设计为可机器校验（如测试、构建、结构校验），减少主观判断与执行漂移。
-7. **证据优先与可追溯**：每次 `skill` 执行都必须产出可审计证据，`workflow` 负责汇总、归档并与门禁结果绑定。
-8. **失败分层恢复**：失败处理遵循 `retry -> replan -> rollback` 升级路径，避免在同一失败模式上无限重试。
-9. **按需加载与成本控制**：仅加载当前阶段必需 `skill`，降低上下文噪音、执行成本与路由复杂度。
+- 建立清晰的两层技能架构：`核心处理技能层` 与 `Workflow 工作流技能层`
+- 对齐项目总蓝图中的 `Coordinator + Task + Workflow` 运行时模型
+- 参考 `DeerFlow` 的角色化编排思想，结合 `superpowers` 的流程化技能实践
+- 把 `SDD + TDD` 作为默认实现策略，保证可执行、可验证、可复现
+- 技能资产可持续扩展：新增技能不破坏已有流程和门禁语义
 
 ---
 
-## 3. Skills 结构模型
+## 2. 设计原则
 
-### 3.1 两部分结构
-
-- **Part 1：Workflow 编排层**
-  - 负责 `SPEC -> PLAN -> IMPLEMENT -> VERIFY -> COMPLETE` 流程推进
-  - 负责下一步决策、分支/重试/回退、并行调度、门禁判定与交付汇总
-- **Part 2：Skills 能力层**
-  - 负责独立能力执行（如需求澄清、代码实现、安全检查）
-  - 可替换实现：同一能力可安装多个 Skill 版本，按策略选择
-
-### 3.2 角色映射（吸收 DeerFlow 设计）
-
-- `Coordinator`：执行 workflow 编排与路由决策
-- `Planner`：选择并调用规划类 skill（如 `refine-spec`、`write-plan`）
-- `Researcher`：选择并调用研究类 skill（如 `research-context`）
-- `Coder`：选择并调用实现类 skill（如 `implement-change`、`tdd-cycle`）
-- `Reviewer`：执行评审与质量/安全校验，输出可审计结论
-- `Reporter`：汇总证据并完成交付校验
+1. **统一入口原则**：所有任务推进由 `Coordinator` 驱动，Skill 不直接改写流程状态机。
+2. **分层解耦原则**：核心处理层负责治理与编排，Workflow 层负责阶段能力执行。
+3. **契约优先原则**：每个 Skill 必须声明输入、输出、证据产物与失败策略。
+4. **门禁外置原则**：`G1~G4` 由 `core-orchestration` 基于证据统一判定，不在 Skill 定义中做门禁绑定。
+5. **证据闭环原则**：关键动作必须可追溯到命令、结果、决策记录。
+6. **可恢复原则**：失败处理遵循 `retry -> replan -> rollback`，并写入任务证据链。
+7. **质量内建原则**：实现阶段默认包含 `SDD + TDD`，避免“先写后补测”。
+8. **方向一致原则**：由角色/编排器按阶段目标选择 Skill，Skill 不反向绑定角色。
 
 ---
 
-## 4. Workflow 与 Agent Policy 的绑定关系
+## 3. 技能分层结构
 
-### 4.1 Workflow 阶段到能力类型绑定（默认模板）
+### 3.1 分层定义
 
-`SPEC -> PLAN -> IMPLEMENT -> VERIFY -> COMPLETE`
+- **L1：核心处理技能层（Core Processing Skills）**
+  - 仅保留两个核心技能：`核心编排` 与 `任务管理`。
+  - `核心编排` 负责调度、阶段推进、门禁决策与异常恢复。
+  - `任务管理` 负责任务状态读取、持久化、证据索引与恢复点管理。
+  - 对应核心对象：`Coordinator`、`Task`。
+- **L2：Workflow 工作流技能层（Workflow Skills）**
+  - 负责阶段目标达成：`SPEC -> PLAN -> IMPLEMENT -> VERIFY -> COMPLETE`。
+  - 参考 `superpowers` 技能家族，强化 `SDD + TDD` 执行习惯。
 
-- `SPEC`
-  - 需求澄清类 skill（如 `refine-spec`、`clarify-requirements`）
-- `PLAN`
-  - 计划拆解类 skill（如 `write-plan`、`slice-tasks`）
-- `IMPLEMENT`
-  - 实现与自检类 skill（如 `tdd-cycle`、`implement-change`、`self-check`）
-- `VERIFY`
-  - 评审与验证类 skill（如 `request-code-review`、`quality-check`、`security-check`、`verify-completion`）
-- `COMPLETE`
-  - 交付封账类能力（如 `finalize-delivery`、`sync-memory`）
-
-### 4.2 门禁到交付要求绑定（由 policy 执行）
-
-- `G1` 启动门禁：规格完整、约束明确、验收口径可执行
-- `G2` 实现门禁：关键测试通过、构建成功、阻断缺陷为 0
-- `G3` 提交门禁：独立评审通过、质量阈值达标
-- `G4` 交付门禁：交付物与证据链一致且可复现
-
-说明：`workflow` 关心“门禁结果”，不强绑定具体 skill 名称；skill 选择由 `agent policy` 基于能力标签与质量评分决定。
-
----
-
-## 5. 推荐 Skill 清单（v1）
-
-### 5.1 Workflow 核心能力（Part 1）
-
-| Workflow Action | 类型 | 核心职责 | 默认阶段 | 门禁映射 | 主要使用 Agent |
-| --- | --- | --- | --- | --- | --- |
-| `orchestrate-task` | 核心协调 | 统一调度、路由、重排、下一步决策 | 全阶段 | - | `Coordinator` |
-| `init-task` | 任务系统 | 创建任务、绑定模板、固化策略快照 | SPEC 前 | G1（前置） | `Coordinator` |
-| `resume-task` | 任务系统 | 从 checkpoint 恢复并校验一致性 | 任意恢复点 | - | `Coordinator` |
-| `evaluate-gate` | 任务系统 | 执行门禁判定并输出 PASS/SOFT_FAIL/HARD_FAIL | 全阶段 | G1~G4 | `Coordinator`/`Verifier` |
-| `record-evidence` | 任务系统 | 写入测试、命令、diff、决策证据 | 全阶段 | - | 全 Agent |
-| `replan-on-failure` | 任务系统 | 失败后进行重规划、回退与恢复策略编排 | IMPLEMENT/VERIFY | G2~G4（失败路径） | `Coordinator` |
-| `finalize-delivery` | 任务系统 | 任务封账与交付索引生成 | COMPLETE | G4 | `Reporter`/`Verifier` |
-
-### 5.2 Skills 能力清单（Part 2）
-
-| Skill | 能力标签 | 核心职责 | 典型阶段 | 可贡献门禁 | 主要使用 Agent |
-| --- | --- | --- | --- | --- | --- |
-| `brainstorm-scope` | 需求澄清 | 澄清目标、边界、非目标与验收口径 | SPEC 前 | G1（前置） | `Planner` |
-| `refine-spec` | 规格定义 | 产出可执行规格与约束 | SPEC | G1 | `Planner` |
-| `write-plan` | 计划拆解 | 将规格转为执行计划 | PLAN | G1（后置） | `Planner` |
-| `execute-plan` | 任务执行 | 按任务切片推进实现并回填证据 | PLAN/IMPLEMENT | G2 | `Coordinator`/`Coder` |
-| `tdd-cycle` | 质量实现 | RED-GREEN-REFACTOR 闭环 | IMPLEMENT | G2 | `Coder` |
-| `implement-change` | 代码实现 | 按计划落地代码改动并输出 diff 摘要 | IMPLEMENT | G2 | `Coder` |
-| `self-check` | 本地自检 | 本地构建/测试/静态检查并登记风险 | IMPLEMENT | G2 | `Coder` |
-| `request-code-review` | 质量评审 | 阶段切换前触发独立评审 | VERIFY | G3 | `Reviewer` |
-| `quality-check` | 质量门禁 | 汇总覆盖率/阻断缺陷/规范检查结果 | VERIFY | G3 | `Reviewer`/`Verifier` |
-| `security-check` | 安全验证 | 安全检查（鉴权、注入、依赖风险） | VERIFY | G3/G4 | `Reviewer`/`Verifier` |
-| `verify-completion` | 交付验证 | 校验完成声明与证据一致性 | VERIFY | G4 | `Verifier` |
-
----
-
-## 6. 编排流程（参考 superpowers + DeerFlow）
+### 3.2 分层关系图
 
 ```mermaid
 flowchart TD
-  A[Task Created] --> B[orchestrate-task]
-  B --> C[SPEC: refine-spec]
-  C --> D{G1}
-  D -- PASS --> E[PLAN: write-plan + slice-tasks]
-  D -- SOFT_FAIL/HARD_FAIL --> C
-  E --> F[IMPLEMENT: tdd-cycle + implement-change]
-  F --> G{G2}
-  G -- PASS --> H[VERIFY: request-code-review + security-check + verify-completion]
-  G -- SOFT_FAIL/HARD_FAIL --> I[replan-on-failure]
-  I --> E
-  H --> J{G3/G4}
-  J -- PASS --> K[COMPLETE: finalize-delivery]
-  J -- SOFT_FAIL/HARD_FAIL --> I
+  U[用户任务意图] --> C[核心处理层: Coordinator Skills]
+  C --> T[Task 状态与证据持久化]
+  C --> W[Workflow 工作流层]
+
+  W --> S[SPEC 技能组]
+  W --> P[PLAN 技能组]
+  W --> I[IMPLEMENT 技能组]
+  W --> V[VERIFY 技能组]
+  W --> D[COMPLETE 技能组]
+
+  S --> G1[G1]
+  P --> G1
+  I --> G2[G2]
+  V --> G3[G3]
+  D --> G4[G4]
+
+  G1 --> C
+  G2 --> C
+  G3 --> C
+  G4 --> C
 ```
 
 ---
 
-## 7. Skill 契约机读化（建议）
+## 4. 技能规划总览
 
-在统一 I/O 契约基础上，新增机读校验层，确保跨宿主一致执行：
+技能表统一字段建议：
 
-- 每个 skill 提供 `contract.schema.yaml`（或 JSON Schema）
-- `output.status`、`artifacts[].type`、`evidence.*` 字段必须可校验
-- 所有 `handoff_context` 必须带 `contract_version`
+- `名称`
+- `类型`
+- `职责`
+- `触发阶段`
+- `输入`
+- `输出`
 
-示例（YAML）：
+角色选择说明：
 
-```yaml
-skill: tdd-cycle
-skill_version: 1.0.0
-contract_version: 1.0.0
-input:
-  required: [task_id, run_id, stage_id, goal]
-output:
-  required: [status, artifacts_out, risks, recommended_next_actions, handoff_context]
-  status_enum: [SUCCESS, PARTIAL, FAIL]
-evidence:
-  command_item_required: [cmd, exit_code, timestamp]
-```
+- 角色（如 `Coordinator`）基于阶段目标、上下文与策略选择 Skill。
+- Skill 仅声明能力契约，不声明“归属角色”。
 
 ---
 
-## 8. 门禁判定矩阵（量化）
+## 5. 核心处理技能表（精简为两项）
 
-为 `evaluate-gate` 提供统一、可审计的判定标准：
-（注：本节的 `PASS/SOFT_FAIL/HARD_FAIL` 属于 workflow 门禁状态，不是 skill 执行状态）
+> 该层是插件的“运行时内核技能”，不处理具体业务实现，专注编排与治理。
+>
+> 设计约束：`任务管理` 必须以存储适配器方式实现（如文件、数据库、KV），`核心编排` 仅依赖统一任务接口，不依赖具体存储介质。
 
-| Gate | PASS（示例） | SOFT_FAIL（示例） | HARD_FAIL（示例） |
-| --- | --- | --- | --- |
-| G1 | 需求边界清晰，验收口径完整，关键约束已确认 | 存在次要待确认项，但不阻断计划拆解 | 目标/范围不明确，无法形成可执行规格 |
-| G2 | 关键测试通过，构建成功，阻断缺陷为 0 | 非阻断问题存在且已登记风险与修复计划 | 构建失败、关键测试失败、出现阻断缺陷 |
-| G3 | 独立评审通过，质量阈值满足（如覆盖率/规范） | 评审通过但遗留低风险问题并已登记 | 高风险评审问题未闭环或质量阈值不达标 |
-| G4 | 交付物、证据链、完成声明一致且可复现 | 少量非关键证据缺失但可补录并已登记 | 证据链断裂、交付不可复现、完成声明不成立 |
-
-说明：阈值（覆盖率、漏洞级别、缺陷等级）由项目策略配置注入，不在 Skill 内硬编码。
+| 名称 | 类型 | 职责 | 触发阶段 | 输入 | 输出 |
+| --- | --- | --- | --- | --- | --- |
+| `core-orchestration` | 核心编排 | 统一调度任务阶段、能力路由、门禁决策、失败恢复与封账控制 | 全阶段 | task_id, workflow_template, policy, stage_context | next_step_decision, stage_transition, gate_result, recovery_action |
+| `task-management` | 任务管理 | 提供任务状态读取、任务持久化、checkpoint、证据索引的统一访问接口，供核心编排调用 | 全阶段 | task_context, evidence_item, checkpoint, storage_adapter | task_state, persistence_result, evidence_ref, restore_context |
 
 ---
 
-## 9. 失败恢复分层策略
+## 6. Workflow 技能表（参考 superpowers，含 SDD+TDD）
 
-`replan-on-failure` 统一实现三层恢复，避免无效重试：
+> 该层直接服务“阶段目标达成”，以能力原子化、可组合为核心。
 
-1. `retry`：输入不变重试（适用于偶发环境抖动）
-2. `replan`：目标不变、任务重排（适用于实现路径受阻）
-3. `rollback`：回到最近 checkpoint（适用于状态污染或错误扩散）
-
-触发原则：
-
-- 同一失败模式重复出现 2 次以上，禁止继续 `retry`，升级到 `replan`
-- 出现 `HARD_FAIL` 且影响证据可信度时，直接触发 `rollback`
-- 每次恢复动作必须写入 `decision_log` 与风险登记
-
----
-
-## 10. Skill 文件规范
-
-每个 Skill 建议放在 `skills/<skill-name>/SKILL.md`，至少包含：
-
-1. `name`
-2. `description`
-3. `trigger`
-4. `input_contract`
-5. `output_contract`
-6. `execution_steps`
-7. `gate_mapping`
-8. `failure_policy`
-9. `examples`
-10. `dependencies`（`requires` / `conflicts_with` / `idempotent`）
-11. `versioning`（`skill_version` / `contract_version` / `deprecation_policy`）
-
-命名规范：
-
-- 使用小写 `kebab-case`
-- 动词开头，明确行为（如 `write-plan`，而非 `planner`）
-- 与 Agent 名称解耦（Skill 是能力，Agent 是角色）
+| 名称 | 类型 | 职责 | 触发阶段 | 输入 | 输出 |
+| --- | --- | --- | --- | --- | --- |
+| `brainstorming` | 需求探索 | 澄清目标、范围、约束与验收口径 | SPEC 前/内 | user_intent, context | clarified_requirements |
+| `writing-plans` | 任务规划 | 生成可执行分步计划与文件改动路径 | PLAN | spec, constraints | implementation_plan |
+| `subagent-driven-development` | SDD 执行 | 按任务拆分并行/串行派发子任务执行 | IMPLEMENT | plan_tasks, context | task_execution_results |
+| `test-driven-development` | TDD 执行 | 执行 `RED -> GREEN -> REFACTOR` | IMPLEMENT | requirement_slice | tests, code_changes, refactor_notes |
+| `systematic-debugging` | 诊断修复 | 结构化定位失败根因并给出修复证据 | IMPLEMENT/VERIFY | failure_signal, logs | root_cause, fix_validation |
+| `requesting-code-review` | 质量评审 | 发起独立评审并收敛缺陷项 | VERIFY | diff, evidence_refs | review_findings, actions |
+| `verification-before-completion` | 完成验证 | 完成声明前执行最终核验与证据复查 | VERIFY/COMPLETE | checklist, artifacts | completion_verification |
+| `finishing-a-development-branch` | 交付收口 | 形成 merge-ready 决策（PR/合并/清理） | COMPLETE | branch_state, gate_summary | integration_decision |
 
 ---
 
-## 11. 分阶段落地计划
+## 7. SDD + TDD 协同策略
 
-### Phase 1：基础可运行
-
-- 落地 `Core Skills` 六件套
-- 建立统一 I/O 契约与证据结构
-- 与 `feature-default` 模板完成打通
-- 接入最小观测指标：`stage_duration_ms`、`gate_pass_rate`、`replan_count`、`evidence_completeness`
-
-### Phase 2：编排增强
-
-- 落地 `orchestrate-task`、`dispatch-subagents`
-- 支持失败重排与并行子任务
-- 接入风险登记与恢复流程
-
-### Phase 3：领域扩展
-
-- 补齐 `frontend/backend/data/security/perf` 领域技能
-- 建立领域技能触发词与路由优先级
-
-### Phase 4：治理闭环
-
-- 指标化：阶段耗时、失败率、门禁命中率、返工率
-- 形成技能质量门禁（输入完整性、输出可审计性、复现通过率）
+1. `PLAN` 阶段产出任务切片与执行顺序（供 SDD 使用）。
+2. `IMPLEMENT` 阶段优先由 SDD 调度任务单元，再对每个单元执行 TDD 闭环。
+3. 每个任务单元必须包含：
+   - 失败测试证据（RED）
+   - 最小实现证据（GREEN）
+   - 重构与回归证据（REFACTOR）
+4. 未满足 TDD 证据链的改动，不可通过 `G2`。
 
 ---
 
-## 12. 验收标准（skills 体系）
+## 8. 后续落地优先级
 
-- 任意任务可映射到明确阶段与 Skill 链路
-- 每次 Skill 执行均能产出可追溯证据
-- 失败具备可恢复路径（checkpoint + replan）
-- 执行/评审/验证职责隔离可被审计验证
-- 在多宿主环境下保持任务语义与门禁语义一致
-- skill 版本升级不破坏历史任务重放（兼容策略可验证）
+### P0（立即落地）
+
+- 核心处理技能：`core-orchestration`、`task-management`
+- Workflow 技能：`brainstorming`、`writing-plans`、`test-driven-development`、`verification-before-completion`
+
+### P1（增强执行）
+
+- `subagent-driven-development`、`systematic-debugging`、`requesting-code-review`
+- 建立统一 Skill 输入输出契约模板（建议 JSON Schema）
+
+### P2（交付治理）
+
+- `finishing-a-development-branch`（由 `core-orchestration` 驱动收口）
+- 接入阶段指标：`gate_pass_rate`、`replan_count`、`evidence_completeness`
