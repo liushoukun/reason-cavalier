@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reason-cavalier.local/schemas/workflow-definition.schema.json",
+  "title": "WorkflowDefinition",
+  "description": "研发/插件侧「工作流」的机器可读定义。参考 DeerFlow 等 staged execution：每个 stage 可有多种输入、约定产出、多 Agent 与若干步骤。实例文件建议使用 YAML，并由本 JSON Schema 校验。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "name", "stages"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "工作流唯一标识，建议 kebab-case（小写字母、数字、连字符段）",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "工作流定义本身的版本（如 1.0.0）， semver 或项目约定字符串"
+    },
+    "name": {
+      "type": "string",
+      "description": "人类可读名称"
+    },
+    "description": {
+      "type": "string",
+      "description": "工作流总体说明"
+    },
+    "methodology": {
+      "type": "string",
+      "description": "方法标签，如 sdd、agent-pipeline"
+    },
+    "documentation": {
+      "type": "string",
+      "description": "对应人读文档路径（相对仓库根）"
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "description": "工作流 stage；与 DeerFlow 等编排中 staged execution 对齐，每段可委派多 Agent、拆为多步",
+      "items": { "$ref": "#/$defs/stage" }
+    },
+    "transitions": {
+      "type": "array",
+      "description": "各 stage 之间的顺序推进与门禁（主链路）",
+      "items": { "$ref": "#/$defs/transition" }
+    },
+    "exceptions": {
+      "type": "array",
+      "description": "回流、范围变更等非主链路规则",
+      "items": { "$ref": "#/$defs/exception" }
+    },
+    "agent_roles": {
+      "type": "array",
+      "description": "可选：按 stage_key 平铺列出 Agent（与 stages[].agents 二选一或并存；新实例优先写在 stages[].agents）",
+      "items": { "$ref": "#/$defs/agent_role_alignment" }
+    },
+    "agent_pipeline": {
+      "type": "object",
+      "description": "可选：与 plan.md 第 4 节类似的 Agent 主链路/并行边，独立于 SDD 阶段时使用",
+      "additionalProperties": false,
+      "properties": {
+        "main_chain": {
+          "type": "array",
+          "description": "按顺序执行的 Agent id 列表",
+          "items": { "type": "string" }
+        },
+        "parallel_after": {
+          "type": "object",
+          "description": "在某个 Agent 之后并行启动的 Agent 列表",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "agent_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Agent 标识，与 docs/plan.md 一致，kebab-case"
+        },
+        "role": {
+          "type": "string",
+          "description": "在本 stage 中的职责，如 lead、participant、reviewer"
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "workflow_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "步骤 id，建议 kebab-case",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "title": { "type": "string", "description": "步骤短标题" },
+        "summary": { "type": "string", "description": "步骤说明" },
+        "order": {
+          "type": "integer",
+          "description": "显式顺序；缺省按在 steps 数组中的先后执行"
+        },
+        "inputs": {
+          "type": "array",
+          "description": "本步骤依赖的输入说明或引用（自由文本）",
+          "items": { "type": "string" }
+        },
+        "outputs": {
+          "type": "array",
+          "description": "本步骤约定产出",
+          "items": { "type": "string" }
+        },
+        "agents": {
+          "type": "array",
+          "description": "本步骤参与的 Agent id；缺省可由编排器回退到所属 stage.agents",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "key", "title", "purpose", "exit_criteria"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "stage 在文件内唯一 id，建议小写 kebab-case",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "key": {
+          "type": "string",
+          "description": "stage 英文键，与文档、门禁引用一致（如 Spec、Plan）"
+        },
+        "title": {
+          "type": "string",
+          "description": "中文展示名，可含「阶段」等词"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "本 stage 目的说明"
+        },
+        "inputs": {
+          "type": "array",
+          "description": "进入本 stage 所需的前置条件、上游产物或上下文（可多条）",
+          "items": { "type": "string" }
+        },
+        "outputs": {
+          "type": "array",
+          "description": "本 stage 的约定产出（规范意义上的「标准输出」，非 shell stdout）",
+          "items": { "type": "string" }
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "兼容旧字段；语义同 outputs，新定义请优先使用 outputs",
+          "items": { "type": "string" }
+        },
+        "agents": {
+          "type": "array",
+          "description": "参与本 stage 的一个或多个 Agent，可带 role",
+          "items": { "$ref": "#/$defs/agent_ref" }
+        },
+        "steps": {
+          "type": "array",
+          "description": "本 stage 内可拆分的执行步骤（顺序由数组或 step.order 决定）",
+          "items": { "$ref": "#/$defs/workflow_step" }
+        },
+        "principles": {
+          "type": "array",
+          "description": "原则类条目（多用于实现 stage）",
+          "items": { "type": "string" }
+        },
+        "activities": {
+          "type": "array",
+          "description": "未拆成 steps 时的活动列表（与 steps 二选一或并存时由实现约定优先级）",
+          "items": { "type": "string" }
+        },
+        "exit_criteria": {
+          "type": "string",
+          "description": "通过标准 / 出口条件"
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_key", "to_key", "gate"],
+      "properties": {
+        "from_key": {
+          "type": "string",
+          "description": "起始 stage 的 key，或 \"*\" 表示任意"
+        },
+        "to_key": { "type": "string", "description": "目标 stage 的 key" },
+        "gate": { "type": "string", "description": "进入下一 stage 的门禁要点" }
+      }
+    },
+    "exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from_key", "to_key", "condition"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "from_key": {
+          "type": "string",
+          "description": "触发时所在 stage 的 key，\"*\" 表示任意 stage"
+        },
+        "to_key": {
+          "type": "string",
+          "description": "应回到的 stage 的 key"
+        },
+        "condition": { "type": "string", "description": "触发条件" },
+        "notes": { "type": "string" }
+      }
+    },
+    "agent_role_alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_key"],
+      "properties": {
+        "stage_key": {
+          "type": "string",
+          "description": "对应 stages[].key，如 Spec、Plan"
+        },
+        "agents": {
+          "type": "array",
+          "description": "主要或常见参与的 Agent id（kebab-case）",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}
