@@ -1,4 +1,4 @@
-# 与 docs/workflow/SDD.md 对齐；术语与 docs/workflow/concepts.md、workflow-definition.md 一致
+# 与 docs/workflow/SDD/SDD.md 对齐；术语与 docs/workflow/index.md、workflow-definition.md 一致
 id: sdd
 version: "1.4.0"
 name: SDD 工作流
@@ -7,7 +7,7 @@ description: >-
   → 验证（Verify）→ 完结（Complete）。每段具备 inputs、outputs、agents、steps；主链路 transitions
   与需求变更 exception 见文末。人读说明见 documentation。
 methodology: sdd
-documentation: docs/workflow/SDD.md
+documentation: docs/workflow/SDD/SDD.md
 
 stages:
   - id: spec
