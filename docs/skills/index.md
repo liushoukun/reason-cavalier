@@ -1,62 +1,49 @@
-# Skills
+# call-reason-cavalier 核心技能方案
 
-## 1. 设计目标
+> 我是睿哲骑士。  
+> `call-reason-cavalier` 是 `reason-cavalier` 插件的核心技能，用于统一驱动任务从接收、编排、执行到完成的全流程。
 
-本设计面向整个插件技能体系，聚焦技能层面的统一规划，目标如下：
+## 1. 定位与边界
 
-- 建立清晰的两层技能架构：`核心处理技能层` 与 `Workflow 工作流技能层`
-- 对齐项目总蓝图中的 `Coordinator + Task + Workflow` 运行时模型
-- 参考 `DeerFlow` 的角色化编排思想，结合 `superpowers` 的流程化技能实践
-- 把 `SDD + TDD` 作为默认实现策略，保证可执行、可验证、可复现
-- 技能资产可持续扩展：新增技能不破坏已有流程和门禁语义
+`call-reason-cavalier` 只做三件核心工作：
 
----
+1. `Coordinator` 能力：统一入口、统一调度、统一门禁决策。
+2. 任务管理能力：统一任务状态模型、证据链模型、持久化模型。
+3. `Workflow` 能力：统一阶段推进模型与 `workflow` 定义协议。
 
-## 2. 设计原则
+不在本技能中处理的内容：
 
-1. **统一入口原则**：所有任务推进由 `Coordinator` 驱动，Skill 不直接改写流程状态机。
-2. **分层解耦原则**：核心处理层负责治理与编排，Workflow 层负责阶段能力执行。
-3. **契约优先原则**：每个 Skill 必须声明输入、输出、证据产物与失败策略。
-4. **门禁外置原则**：`G1~G4` 由 `core-orchestration` 基于证据统一判定，不在 Skill 定义中做门禁绑定。
-5. **证据闭环原则**：关键动作必须可追溯到命令、结果、决策记录。
-6. **可恢复原则**：失败处理遵循 `retry -> replan -> rollback`，并写入任务证据链。
-7. **质量内建原则**：实现阶段默认包含 `SDD + TDD`，避免“先写后补测”。
-8. **方向一致原则**：由角色/编排器按阶段目标选择 Skill，Skill 不反向绑定角色。
+- 具体业务实现细节（由各阶段技能执行）。
+- 存储介质实现细节（由存储适配器实现）。
+- 角色人格设定（由上层 Agent/Persona 处理）。
 
----
+## 2. 运行原则（参考 using-superpowers）
 
-## 3. 技能分层结构
+1. 先判定任务，再执行动作：任何行动都必须绑定 `task_id`。
+2. 先过协议，再写实现：输入输出必须符合契约，不走隐式流程。
+3. 先留证据，再宣告完成：无证据不通过阶段门禁。
+4. 单一入口：仅 `Coordinator` 可以推进阶段状态。
+5. 可恢复优先：失败按 `retry -> replan -> rollback` 执行并落盘。
 
-### 3.1 分层定义
-
-- **L1：核心处理技能层（Core Processing Skills）**
-  - 仅保留两个核心技能：`核心编排` 与 `任务管理`。
-  - `核心编排` 负责调度、阶段推进、门禁决策与异常恢复。
-  - `任务管理` 负责任务状态读取、持久化、证据索引与恢复点管理。
-  - 对应核心对象：`Coordinator`、`Task`。
-- **L2：Workflow 工作流技能层（Workflow Skills）**
-  - 负责阶段目标达成：`SPEC -> PLAN -> IMPLEMENT -> VERIFY -> COMPLETE`。
-  - 参考 `superpowers` 技能家族，强化 `SDD + TDD` 执行习惯。
-
-### 3.2 分层关系图
+## 3. 总体架构
 
 ```mermaid
 flowchart TD
-  U[用户任务意图] --> C[核心处理层: Coordinator Skills]
-  C --> T[Task 状态与证据持久化]
-  C --> W[Workflow 工作流层]
+  U[用户请求] --> C[call-reason-cavalier Coordinator]
+  C --> TM[Task Management]
+  C --> WF[Workflow Engine]
 
-  W --> S[SPEC 技能组]
-  W --> P[PLAN 技能组]
-  W --> I[IMPLEMENT 技能组]
-  W --> V[VERIFY 技能组]
-  W --> D[COMPLETE 技能组]
+  WF --> SPEC[SPEC]
+  WF --> PLAN[PLAN]
+  WF --> IMPLEMENT[IMPLEMENT]
+  WF --> VERIFY[VERIFY]
+  WF --> COMPLETE[COMPLETE]
 
-  S --> G1[G1]
-  P --> G1
-  I --> G2[G2]
-  V --> G3[G3]
-  D --> G4[G4]
+  SPEC --> G1[G1: 需求清晰]
+  PLAN --> G1
+  IMPLEMENT --> G2[G2: 实现可运行]
+  VERIFY --> G3[G3: 质量达标]
+  COMPLETE --> G4[G4: 交付封账]
 
   G1 --> C
   G2 --> C
@@ -64,81 +51,156 @@ flowchart TD
   G4 --> C
 ```
 
----
+## 4. Coordinator 能力定义
 
-## 4. 技能规划总览
+### 4.1 职责
 
-技能表统一字段建议：
+- 接收任务并创建 `task_id`。
+- 选择或加载 `workflow` 模板。
+- 驱动阶段迁移：`SPEC -> PLAN -> IMPLEMENT -> VERIFY -> COMPLETE`。
+- 在每个阶段执行门禁判定（`G1~G4`）。
+- 处理异常恢复：重试、重规划、回滚。
 
-- `名称`
-- `类型`
-- `职责`
-- `触发阶段`
-- `输入`
-- `输出`
+### 4.2 Coordinator 输入协议
 
-角色选择说明：
+```json
+{
+  "task_id": "string",
+  "intent": "string",
+  "context": {},
+  "constraints": [],
+  "workflow_id": "string",
+  "current_stage": "SPEC|PLAN|IMPLEMENT|VERIFY|COMPLETE",
+  "policy": {
+    "max_retry": 2,
+    "allow_replan": true,
+    "strict_evidence": true
+  }
+}
+```
 
-- 角色（如 `Coordinator`）基于阶段目标、上下文与策略选择 Skill。
-- Skill 仅声明能力契约，不声明“归属角色”。
+### 4.3 Coordinator 输出协议
 
----
+```json
+{
+  "task_id": "string",
+  "decision": "continue|retry|replan|rollback|complete|blocked",
+  "next_stage": "SPEC|PLAN|IMPLEMENT|VERIFY|COMPLETE|null",
+  "gate_result": {
+    "gate": "G1|G2|G3|G4",
+    "passed": true,
+    "reasons": []
+  },
+  "actions": [],
+  "evidence_refs": [],
+  "updated_at": "ISO-8601"
+}
+```
 
-## 5. 核心处理技能表（精简为两项）
+## 5. 任务管理能力与任务存储协议
 
-> 该层是插件的“运行时内核技能”，不处理具体业务实现，专注编排与治理。
->
-> 设计约束：`任务管理` 必须以存储适配器方式实现（如文件、数据库、KV），`核心编排` 仅依赖统一任务接口，不依赖具体存储介质。
+### 5.1 任务管理职责
 
-| 名称 | 类型 | 职责 | 触发阶段 | 输入 | 输出 |
-| --- | --- | --- | --- | --- | --- |
-| `core-orchestration` | 核心编排 | 统一调度任务阶段、能力路由、门禁决策、失败恢复与封账控制 | 全阶段 | task_id, workflow_template, policy, stage_context | next_step_decision, stage_transition, gate_result, recovery_action |
-| `task-management` | 任务管理 | 提供任务状态读取、任务持久化、checkpoint、证据索引的统一访问接口，供核心编排调用 | 全阶段 | task_context, evidence_item, checkpoint, storage_adapter | task_state, persistence_result, evidence_ref, restore_context |
+- 维护任务主状态：阶段、子任务、依赖、阻塞原因。
+- 管理证据链：命令、结果、评审、测试、决策记录。
+- 维护检查点：支持从任意合法阶段恢复。
+- 对外提供统一读写接口，不暴露底层存储细节。
 
----
+### 5.2 Task 状态协议（逻辑模型）
 
-## 6. Workflow 技能表（参考 superpowers，含 SDD+TDD）
+```json
+{
+  "task_id": "string",
+  "title": "string",
+  "status": "active|blocked|done|cancelled",
+  "current_stage": "SPEC|PLAN|IMPLEMENT|VERIFY|COMPLETE",
+  "subtasks": [
+    {
+      "id": "string",
+      "title": "string",
+      "status": "pending|in_progress|done|cancelled",
+      "depends_on": []
+    }
+  ],
+  "evidence_refs": [],
+  "checkpoints": [],
+  "updated_at": "ISO-8601"
+}
+```
 
-> 该层直接服务“阶段目标达成”，以能力原子化、可组合为核心。
+### 5.3 任务存储协议（Storage Adapter）
 
-| 名称 | 类型 | 职责 | 触发阶段 | 输入 | 输出 |
-| --- | --- | --- | --- | --- | --- |
-| `brainstorming` | 需求探索 | 澄清目标、范围、约束与验收口径 | SPEC 前/内 | user_intent, context | clarified_requirements |
-| `writing-plans` | 任务规划 | 生成可执行分步计划与文件改动路径 | PLAN | spec, constraints | implementation_plan |
-| `subagent-driven-development` | SDD 执行 | 按任务拆分并行/串行派发子任务执行 | IMPLEMENT | plan_tasks, context | task_execution_results |
-| `test-driven-development` | TDD 执行 | 执行 `RED -> GREEN -> REFACTOR` | IMPLEMENT | requirement_slice | tests, code_changes, refactor_notes |
-| `systematic-debugging` | 诊断修复 | 结构化定位失败根因并给出修复证据 | IMPLEMENT/VERIFY | failure_signal, logs | root_cause, fix_validation |
-| `requesting-code-review` | 质量评审 | 发起独立评审并收敛缺陷项 | VERIFY | diff, evidence_refs | review_findings, actions |
-| `verification-before-completion` | 完成验证 | 完成声明前执行最终核验与证据复查 | VERIFY/COMPLETE | checklist, artifacts | completion_verification |
-| `finishing-a-development-branch` | 交付收口 | 形成 merge-ready 决策（PR/合并/清理） | COMPLETE | branch_state, gate_summary | integration_decision |
+统一接口（抽象）：
 
----
+```ts
+interface TaskStorageAdapter {
+  getTask(taskId: string): Promise<TaskRecord | null>;
+  saveTask(task: TaskRecord): Promise<void>;
+  appendEvidence(taskId: string, evidence: EvidenceRecord): Promise<string>;
+  createCheckpoint(taskId: string, snapshot: TaskSnapshot): Promise<string>;
+  loadCheckpoint(taskId: string, checkpointId: string): Promise<TaskSnapshot>;
+}
+```
 
-## 7. SDD + TDD 协同策略
+存储约束：
 
-1. `PLAN` 阶段产出任务切片与执行顺序（供 SDD 使用）。
-2. `IMPLEMENT` 阶段优先由 SDD 调度任务单元，再对每个单元执行 TDD 闭环。
-3. 每个任务单元必须包含：
-   - 失败测试证据（RED）
-   - 最小实现证据（GREEN）
-   - 重构与回归证据（REFACTOR）
-4. 未满足 TDD 证据链的改动，不可通过 `G2`。
+- 必须支持幂等写入（防重复落盘）。
+- 必须支持按 `task_id` 快速检索。
+- 必须支持证据追加写（append-only）。
+- 必须记录 `created_at` 与 `updated_at` 时间戳。
 
----
+## 6. Workflow 能力与定义协议
 
-## 8. 后续落地优先级
+### 6.1 Workflow 职责
 
-### P0（立即落地）
+- 定义阶段顺序与可选分支。
+- 定义每阶段输入、输出、门禁条件、失败策略。
+- 定义可调用技能集合与执行策略（串行/并行）。
 
-- 核心处理技能：`core-orchestration`、`task-management`
-- Workflow 技能：`brainstorming`、`writing-plans`、`test-driven-development`、`verification-before-completion`
+### 6.2 Workflow 定义协议
 
-### P1（增强执行）
+```yaml
+workflow_id: default-dev-workflow
+version: 1
+stages:
+  - id: SPEC
+    required_inputs: [intent, context]
+    expected_outputs: [spec_doc, acceptance_criteria]
+    gate: G1
+    on_fail: replan
+  - id: PLAN
+    required_inputs: [spec_doc]
+    expected_outputs: [plan, task_breakdown]
+    gate: G1
+    on_fail: replan
+  - id: IMPLEMENT
+    required_inputs: [plan]
+    expected_outputs: [code_changes, test_results]
+    gate: G2
+    on_fail: retry
+  - id: VERIFY
+    required_inputs: [code_changes, test_results]
+    expected_outputs: [review_result, verification_result]
+    gate: G3
+    on_fail: retry
+  - id: COMPLETE
+    required_inputs: [verification_result]
+    expected_outputs: [delivery_record]
+    gate: G4
+    on_fail: blocked
+```
 
-- `subagent-driven-development`、`systematic-debugging`、`requesting-code-review`
-- 建立统一 Skill 输入输出契约模板（建议 JSON Schema）
+### 6.3 Workflow 运行约束
 
-### P2（交付治理）
+- 阶段不可跳跃（除非显式 `rollback`）。
+- 门禁失败必须生成原因与修复动作。
+- 每次阶段迁移都必须写入任务证据链。
 
-- `finishing-a-development-branch`（由 `core-orchestration` 驱动收口）
-- 接入阶段指标：`gate_pass_rate`、`replan_count`、`evidence_completeness`
+## 7. 核心技能清单（call-reason-cavalier 内部）
+
+| 技能名 | 能力域 | 核心职责 | 关键输入 | 关键输出 |
+| --- | --- | --- | --- | --- |
+| `coordinator` | 编排治理 | 阶段推进、门禁决策、恢复策略 | task context, workflow, policy | decision, transition, gate result |
+| `task-management` | 状态与存储 | 任务状态管理、证据链、checkpoint | task record, evidence, snapshot | state view, evidence ref, restore context |
+| `workflow-engine` | 流程执行 | 解析 workflow 定义并驱动阶段执行 | workflow spec, stage context | stage outputs, execution trace |
+
