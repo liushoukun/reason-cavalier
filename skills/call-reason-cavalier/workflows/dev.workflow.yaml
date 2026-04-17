@@ -1,0 +1,180 @@
+id: dev-workflow
+version: "1.0.0"
+name: Development Workflow
+description: Default reusable workflow for staged development with evidence-driven gates.
+
+stages:
+  - id: spec-stage
+    key: SPEC
+    title: Specification
+    purpose: Clarify scope, constraints, and acceptance criteria.
+    inputs:
+      - intent
+      - context
+      - constraints
+    outputs:
+      - spec_doc
+      - acceptance_criteria
+    steps:
+      - id: collect-context
+        title: Collect Context
+        purpose: Gather relevant project context and constraints.
+        inputs:
+          - intent
+          - context
+          - constraints
+        outputs:
+          - scoped_problem_statement
+      - id: define-acceptance
+        title: Define Acceptance Criteria
+        purpose: Produce testable acceptance criteria.
+        inputs:
+          - scoped_problem_statement
+        outputs:
+          - acceptance_criteria
+
+  - id: plan-stage
+    key: PLAN
+    title: Planning
+    purpose: Produce an executable plan with risk controls.
+    inputs:
+      - spec_doc
+      - acceptance_criteria
+    outputs:
+      - implementation_plan
+      - task_breakdown
+      - risk_list
+    steps:
+      - id: break-down-work
+        title: Break Down Work
+        purpose: Split implementation into traceable tasks.
+        inputs:
+          - spec_doc
+          - acceptance_criteria
+        outputs:
+          - task_breakdown
+      - id: define-test-strategy
+        title: Define Test Strategy
+        purpose: Define test coverage strategy before coding.
+        inputs:
+          - task_breakdown
+        outputs:
+          - test_strategy
+
+  - id: implement-stage
+    key: IMPLEMENT
+    title: Implementation
+    purpose: Deliver code and evidence aligned with the plan.
+    inputs:
+      - implementation_plan
+      - task_breakdown
+      - test_strategy
+    outputs:
+      - code_changes
+      - test_results
+    steps:
+      - id: implement-tasks
+        title: Implement Tasks
+        purpose: Complete planned code changes.
+        inputs:
+          - task_breakdown
+        outputs:
+          - code_changes
+      - id: run-validation-tests
+        title: Run Validation Tests
+        purpose: Validate behavior against acceptance criteria.
+        inputs:
+          - code_changes
+          - test_strategy
+        outputs:
+          - test_results
+
+  - id: verify-stage
+    key: VERIFY
+    title: Verification
+    purpose: Verify quality gates before release.
+    inputs:
+      - code_changes
+      - test_results
+    outputs:
+      - review_result
+      - verification_result
+    steps:
+      - id: review-changes
+        title: Review Changes
+        purpose: Perform quality review and risk checks.
+        inputs:
+          - code_changes
+          - test_results
+        outputs:
+          - review_result
+      - id: finalize-verification
+        title: Finalize Verification
+        purpose: Confirm release readiness.
+        inputs:
+          - review_result
+        outputs:
+          - verification_result
+
+  - id: complete-stage
+    key: COMPLETE
+    title: Completion
+    purpose: Publish final delivery conclusion and evidence.
+    inputs:
+      - verification_result
+    outputs:
+      - delivery_record
+      - evidence_refs
+    steps:
+      - id: publish-delivery
+        title: Publish Delivery
+        purpose: Produce auditable delivery record.
+        inputs:
+          - verification_result
+        outputs:
+          - delivery_record
+          - evidence_refs
+
+transitions:
+  - from_key: SPEC
+    to_key: PLAN
+    gate_id: G1
+    gate_note: Spec and acceptance criteria are complete and actionable.
+  - from_key: PLAN
+    to_key: IMPLEMENT
+    gate_id: G1
+    gate_note: Plan is executable and risks are addressed.
+  - from_key: IMPLEMENT
+    to_key: VERIFY
+    gate_id: G2
+    gate_note: Implementation evidence and test results are valid.
+  - from_key: VERIFY
+    to_key: COMPLETE
+    gate_id: G3
+    gate_note: Quality verification and review are passed.
+
+gates:
+  - id: G1
+    type: STARTUP
+    criteria:
+      - Scope and acceptance criteria are clear.
+      - Plan or preconditions are ready for execution.
+    notes: Entry gate for planning and implementation start.
+  - id: G2
+    type: IMPLEMENTATION
+    criteria:
+      - Code changes are aligned with the approved plan.
+      - Test results provide sufficient implementation evidence.
+    notes: Implementation quality gate.
+  - id: G3
+    type: SUBMISSION
+    criteria:
+      - Review result is acceptable.
+      - Verification result indicates release readiness.
+    notes: Submission gate before completion.
+  - id: G4
+    type: DELIVERY
+    criteria:
+      - Delivery record is complete and traceable.
+      - Evidence references are available for audit.
+    notes: Final delivery gate for closure semantics.
