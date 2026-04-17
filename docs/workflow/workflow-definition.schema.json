@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://reason-cavalier.local/schemas/workflow-definition.schema.json",
   "title": "WorkflowDefinition",
-  "description": "Workflow 简化定义 Schema（均衡核心）：id/version/name/description/stages/transitions/gates。",
+  "description": "Workflow 简化定义 Schema（均衡核心）：id/version/name/description/stages/gates。",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "version", "name", "stages"],
@@ -29,11 +29,6 @@
       "minItems": 1,
       "description": "工作流阶段定义",
       "items": { "$ref": "#/$defs/stage" }
-    },
-    "transitions": {
-      "type": "array",
-      "description": "阶段间迁移规则",
-      "items": { "$ref": "#/$defs/transition" }
     },
     "gates": {
       "type": "array",
@@ -78,6 +73,11 @@
           "type": "array",
           "description": "阶段内步骤列表",
           "items": { "$ref": "#/$defs/step" }
+        },
+        "agents": {
+          "type": "array",
+          "description": "阶段涉及的执行主体列表",
+          "items": { "type": "string" }
         }
       }
     },
@@ -108,26 +108,6 @@
           "type": "array",
           "description": "步骤产出项",
           "items": { "type": "string" }
-        }
-      }
-    },
-    "transition": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["from_key", "to_key"],
-      "properties": {
-        "from_key": {
-          "type": "string",
-          "description": "起始 stage 的 key"
-        },
-        "to_key": { "type": "string", "description": "目标 stage 的 key" },
-        "gate_id": {
-          "type": "string",
-          "description": "可选：引用 gates[].id"
-        },
-        "gate_note": {
-          "type": "string",
-          "description": "可选：门禁说明（人读）"
         }
       }
     },

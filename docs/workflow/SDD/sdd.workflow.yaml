@@ -4,8 +4,8 @@ version: "1.4.0"
 name: SDD 工作流
 description: >-
   以可验证的需求为单一事实来源，按 stage 推进：需求（Spec）→ 方案（Plan）→ 实现（Implement）
-  → 验证（Verify）→ 完结（Complete）。每段具备 inputs、outputs、agents、steps；主链路 transitions
-  与需求变更 exception 见文末。人读说明见 documentation。
+  → 验证（Verify）→ 完结（Complete）。每段具备 inputs、outputs、agents、steps；主链路按 stages
+  顺序推进。需求变更 exception 见文末。人读说明见 documentation。
 methodology: sdd
 documentation: docs/workflow/SDD/SDD.md
 
@@ -191,20 +191,6 @@ stages:
     exit_criteria: >-
       需求规约已定稿且可追溯至 Spec 与 Verify；知识库整理已覆盖上游各段关键产出；
       文档与代码仓库状态一致；发布或合并流程结束。
-
-transitions:
-  - from_key: Spec
-    to_key: Plan
-    gate: 验收标准齐备、范围冻结或可追踪变更
-  - from_key: Plan
-    to_key: Implement
-    gate: 任务与需求可追溯；测试方案已定稿；阻塞已处理
-  - from_key: Implement
-    to_key: Verify
-    gate: 构建与自检通过
-  - from_key: Verify
-    to_key: Complete
-    gate: 验收通过或例外已批准；需求规约已定稿；知识库合并整理与入库已完成
 
 exceptions:
   - id: requirement-change

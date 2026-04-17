@@ -135,24 +135,6 @@ stages:
           - delivery_record
           - evidence_refs
 
-transitions:
-  - from_key: SPEC
-    to_key: PLAN
-    gate_id: G1
-    gate_note: Spec and acceptance criteria are complete and actionable.
-  - from_key: PLAN
-    to_key: IMPLEMENT
-    gate_id: G1
-    gate_note: Plan is executable and risks are addressed.
-  - from_key: IMPLEMENT
-    to_key: VERIFY
-    gate_id: G2
-    gate_note: Implementation evidence and test results are valid.
-  - from_key: VERIFY
-    to_key: COMPLETE
-    gate_id: G3
-    gate_note: Quality verification and review are passed.
-
 gates:
   - id: G1
     type: STARTUP

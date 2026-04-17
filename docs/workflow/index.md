@@ -1,164 +1,104 @@
-# Workflow 设计规范（基于总体规划）
+# Workflow 核心概念
 
-本文是 `Workflow` 的规范化设计定义，严格映射 [`docs/index.md`](../index.md) 的总体蓝图。  
-本页聚焦“流程契约是什么”；执行由 `Coordinator` 负责，状态持久化由 `Task` 负责。
+Workflow 是任务推进的标准化流程契约，用于在统一语义下约束流程结构、阶段迁移和判定口径，并提供稳定的机读定义基础。
 
----
+Workflow 只定义流程语义，不承担运行时执行职责：
 
-## 1. 设计目标与范围
+- 定义流程应如何推进
+- 不定义执行主体调度策略
+- 不承载运行时状态持久化
 
-### 1.1 设计目标
-
-`Workflow` 仅负责定义以下内容：
-
-- 阶段模板：任务生命周期如何推进
-- 阶段契约：每阶段 `entry_criteria`、`inputs`、`outputs`、`exit_criteria`
-- 门禁模型：G1~G4 的判定条件与结果语义
-- 回流与恢复：失败后的 `retry/replan/rollback` 规则
-
-### 1.2 非目标
-
-`Workflow` 不负责：
-
-- 直接执行实现、测试、评审动作
-- 读写任务状态与证据索引
-- 在运行时修改流程语义
+本文采用单一核心建模对象 `stages[]`：阶段按声明顺序形成主流程；门禁作为阶段内约束，通过 `gates[]` 与阶段绑定，不作为顶层独立集合。
 
 ---
 
-## 2. 架构边界（严格映射）
+## 1. 术语与模型
 
-| 模块 | 职责 | 边界约束 |
-|------|------|----------|
-| `Workflow` | 定义阶段模板、门禁契约、异常回流 | 不执行、不存储、不判定运行态细节 |
-| `Coordinator` | 创建/恢复任务、装载模板与策略、推进阶段、生成下一步决策 | 不承载任务长期语义 |
-| `Task` | 存储任务元数据、状态、checkpoint、证据索引 | 不参与编排与门禁判断 |
+### 1.1 术语定义
+
+在本规范中，**门禁即前置要求**，为同一约束在不同语境下的命名：
+
+- 从流程控制语境，称为门禁（`gate item`）
+- 从阶段准入语境，称为前置要求
+
+统一规则：**进入阶段前必须通过该阶段门禁**。阶段入口约束由 `stage.gates[].entryCriteria[]` 表达。
+
+### 1.2 stages（阶段）
+
+`stages[]` 是流程节点集合，描述“做什么”，并承载阶段内结构与约束。
+
+每个 `stage` 必须包含：
+
+- `name`：阶段唯一标识（建议 kebab-case）
+- `title`：阶段显示名
+- `purpose`：阶段目标
+- `gates[]`：阶段门禁集合（可定义多个门禁项）
+
+可选字段：
+
+- `inputs[]`：阶段输入
+- `outputs[]`：阶段产出
+- `steps[]`：阶段内步骤
+- `agents[]`：阶段执行主体（用于编排提示）
+
+### 1.3 gates（阶段门禁集合）
+
+`stage.gates[]` 定义阶段的进入与离开条件。每个门禁项建议包含：
+
+- `type`：门禁类型（`STARTUP` / `IMPLEMENTATION` / `SUBMISSION` / `DELIVERY` / `CUSTOM`）
+- `entryCriteria[]`：阶段进入条件（前置要求，至少 1 条）
+- `exitCriteria[]`：阶段离开条件（迁移要求，至少 1 条）
+
+统一判定语义：
+
+- `PASS`：允许迁移
+- `SOFT_FAIL`：允许迁移并记录风险
+- `HARD_FAIL`：禁止迁移并进入阻断/恢复处理
+
+---
+
+## 2. 流程推进规则（DAG）
+
+Workflow 主流程由 `stages[]` 顺序直接确定：`stages[i] -> stages[i+1]`。
+
+约束如下：
+
+- `stages[]` 必须按执行顺序声明，且至少包含 1 个阶段
+- 进入 `stages[i]` 前，必须满足该阶段所有必需门禁项的 `entryCriteria[]`
+- 从 `stages[i]` 迁移到 `stages[i+1]` 前，必须满足该阶段所有必需门禁项的 `exitCriteria[]`
+- 流程图保持 DAG 语义（无环），确保推进可预测、可恢复
 
 ```mermaid
 flowchart LR
-  U[User Intent] --> C[Coordinator]
-  C -->|加载流程模板| W[Workflow Template]
-  C -->|读写状态与索引| T[Task Store]
-  C -->|调度执行能力| E[Agents / Skills / Tools]
-  E -->|产出与证据| L[Evidence Ledger]
-  L -->|索引回写| T
-  C -->|门禁判定| P[Policy Engine]
+  SPEC[Spec] -->|G1| PLAN[Plan]
+  PLAN -->|G2| IMPLEMENT[Implement]
+  IMPLEMENT -->|G3| VERIFY[Verify]
+  VERIFY -->|G4| COMPLETE[Complete]
 ```
 
----
-
-## 3. 标准阶段模板
-
-默认阶段主链路：
-
-`SPEC -> PLAN -> IMPLEMENT -> VERIFY -> COMPLETE`
-
-### 3.1 阶段契约（统一字段）
-
-每个 `stage` 必须可表达：
-
-- `entry_criteria`：进入条件
-- `inputs`：阶段依赖输入
-- `steps`：阶段内子步骤（可选）
-- `outputs`：阶段约定交付物
-- `exit_criteria`：离开条件
-
-### 3.2 阶段目的（规范口径）
-
-- `SPEC`：明确需求边界、约束与验收目标
-- `PLAN`：形成实施方案、任务切片与风险应对
-- `IMPLEMENT`：完成实现与基础自检
-- `VERIFY`：完成评审与质量验证
-- `COMPLETE`：封账并形成可追溯交付结论
+需求变更通过新一轮 workflow（或新任务）重新进入上游阶段处理，不在单个 workflow 内引入回流边。
 
 ---
 
-## 4. 门禁模型与决策语义
+## 3. 运行边界
 
-### 4.1 G1~G4 门禁
-
-- `G1` 启动门禁：规格与上下文完整
-- `G2` 实现门禁：实现结果与测试证据一致
-- `G3` 提交门禁：评审通过且质量阈值达标
-- `G4` 交付门禁：交付物与证据链一致
-
-### 4.2 门禁结果
-
-- `PASS`：允许进入下一阶段
-- `SOFT_FAIL`：记录风险并可继续
-- `HARD_FAIL`：阻断推进并置为 `BLOCKED`
-
-### 4.3 下一步决策
-
-每阶段完成后必须产出 `next_step_decision`：
-
-- `CONTINUE`
-- `ASK_USER`
-- `DISPATCH_AGENT`
-- `REPLAN`
-- `STOP`
-
-门禁负责“是否可过”，决策负责“下一步做什么”。
+- `Workflow`：定义阶段与门禁语义
+- `Coordinator`：按 `stages[]` 顺序推进，并执行阶段入口/出口门禁判定
+- `Task`：保存运行时状态、证据和 checkpoint，不定义流程结构
 
 ---
 
-## 5. 失败恢复与异常回流
+## 4. 机读定义对齐
 
-### 5.1 标准恢复动作
-
-- `retry`：同阶段重试（受次数与条件约束）
-- `replan`：回到 `PLAN` 进行重排
-- `rollback`：回退到最近有效 checkpoint
-
-### 5.2 恢复前一致性校验
-
-恢复执行前必须完成：
-
-1. 加载最新 checkpoint
-2. 校验 `policy_snapshot` 一致性
-3. 校验上下文完整性与依赖可用性
-4. 校验通过后续跑；失败进入 `BLOCKED`
-
-```mermaid
-flowchart TD
-  A[阶段执行完成] --> B{门禁结果}
-  B -- PASS --> C[CONTINUE 到下一阶段]
-  B -- SOFT_FAIL --> D[记录风险并继续]
-  B -- HARD_FAIL --> E[进入恢复流程]
-  E --> F{恢复策略}
-  F -- retry --> G[当前阶段重试]
-  F -- replan --> H[回到 PLAN]
-  F -- rollback --> I[回退 checkpoint]
-```
-
----
-
-## 6. 机读定义对齐要求
-
-`docs/workflow/index.md` 是语义规范，机读定义必须与其一致：
+语义文档与机读定义保持一致：
 
 - 字段说明：`docs/workflow/workflow-definition.md`
-- 校验规则：`docs/workflow/workflow-definition.schema.json`
+- Schema 校验：`docs/workflow/workflow-definition.schema.json`
 - 方法正文：`docs/workflow/SDD/SDD.md`
 
-每条 workflow 模板至少应包含：
+最小根对象包含：
 
-- `template_id`
+- `id`
+- `version`
+- `name`
 - `stages[]`
-- `entry_criteria`
-- `exit_criteria`
-- `required_artifacts[]`
-- `gates[]`
-- `fallback_policy`
-
----
-
-## 7. 设计验收标准
-
-当且仅当满足以下条件，认为 Workflow 设计可用：
-
-- 阶段语义与总体规划一致
-- G1~G4 可判定、可阻断、可追溯
-- `next_step_decision` 可驱动后续动作
-- 失败路径具备可恢复闭环
-- 跨宿主执行语义一致且可审计

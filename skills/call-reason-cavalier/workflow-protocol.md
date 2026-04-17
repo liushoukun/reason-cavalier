@@ -17,7 +17,6 @@
 - `name`：工作流名称
 - `description`：说明（可选）
 - `stages[]`：阶段列表（至少 1 项）
-- `transitions[]`：阶段迁移（可选）
 - `gates[]`：门禁定义（可选）
 
 ## 3. Stage/Step 协议
@@ -45,16 +44,15 @@
 - `inputs[]`（可选）
 - `outputs[]`（可选）
 
-## 4. Transition/Gate 协议
+## 4. Stage 顺序与 Gate 协议
 
-### 4.1 Transition
+### 4.1 Stage 顺序
 
-每条迁移包含：
+主流程按 `stages[]` 声明顺序执行：
 
-- `from`（必填）
-- `to`（必填）
-- `gate_id`（可选）
-- `gate_note`（可选）
+- 默认迁移关系：`stages[i] -> stages[i+1]`
+- 不再定义独立 `transitions[]` 连边对象
+- 若存在需求变更或异常恢复，使用任务级恢复策略处理，不在同一 workflow 内引入回流边
 
 ### 4.2 Gate
 
@@ -67,8 +65,8 @@
 
 ## 5. 一致性约束
 
-- `transitions[].from_key` 与 `transitions[].to_key` 必须引用已存在的 `stages[].key`
-- `transitions[].gate_id` 若存在，必须引用已存在的 `gates[].id`
+- `stages[]` 必须按执行顺序声明
+- `gates[].id` 应全局唯一，供执行期门禁判定引用
 - 未通过 schema 校验的 workflow，不得进入执行态
 
 ## 6. 技能执行规则
@@ -78,7 +76,7 @@
 1. 先选定 workflow（任务显式指定优先，否则按意图匹配）
 2. 再校验 workflow schema
 3. 按阶段执行并产出证据
-4. 按门禁判定迁移或触发恢复（`retry -> replan -> rollback`）
+4. 按门禁判定是否进入下一顺位阶段或触发恢复（`retry -> replan -> rollback`）
 5. 完成后输出交付结论或阻塞结论
 
 ## 7. 参考

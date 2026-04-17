@@ -2,7 +2,7 @@
 
 本文是 **SDD（需求 → 方案 → 实现 → 验证 → 完结）** 的人读说明。文中「**阶段**」与机读工作流里的 **stage** 一一对应；**输入 / 产出 / 参与 Agent / 步骤** 等用语与 [`concepts.md`](concepts.md)、[`workflow-definition.md`](workflow-definition.md) 及 [`workflow-definition.schema.json`](workflow-definition.schema.json) 中的字段对齐。**完整 YAML 实例**见 [`examples/sdd.workflow.yaml`](examples/sdd.workflow.yaml)（根字段 `documentation` 指向本文）。
 
-以可验证的需求为单一事实来源，按 **stage** 推进：**需求（Spec）→ 方案（Plan）→ 实现（Implement）→ 验证（Verify）→ 完结（Complete）**。每一 stage 具备明确的 **输入、约定产出、通过标准**；未满足出口条件则不得进入下一 stage。主链路上的准入条件对应 YAML 中的 **`transitions[].gate`**；需求变更回流对应 **`exceptions`**。
+以可验证的需求为单一事实来源，按 **stage** 推进：**需求（Spec）→ 方案（Plan）→ 实现（Implement）→ 验证（Verify）→ 完结（Complete）**。每一 stage 具备明确的 **输入、约定产出、通过标准**；未满足出口条件则不得进入下一 stage。主链路按 `stages[]` 顺序推进；需求变更与恢复动作对应 **`exceptions`**。
 
 ## 总览
 
@@ -201,9 +201,9 @@ flowchart TB
 
 ---
 
-## 主链路与回流（对应 transitions / exceptions）
+## 主链路与回流（对应 stages 顺序 / exceptions）
 
-主链路上每一跳的条件即 **`transitions`** 中的 **gate**（与上表「通过标准」衔接）；非常规回到需求段即 **exception**（需求变更回到 Spec，再向下游同步）。
+主链路由 `stages[]` 的顺序定义（与上文各段「通过标准」衔接）；非常规回到需求段即 **exception**（需求变更回到 Spec，再向下游同步）。
 
 | 自 stage（key）→ 至 stage（key） | 门禁（gate）要点 |
 | ------------------------------- | ---------------- |
