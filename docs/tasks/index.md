@@ -36,8 +36,7 @@ flowchart TD
 统一落盘目录：
 
 ```text
-.ai/tasks/
-  task.yaml
+.ai/tasks/*/task.yaml
 ```
 
 格式约束：
