@@ -1,19 +1,22 @@
-# 与 docs/workflow/SDD/SDD.md 对齐；术语与 docs/workflow/index.md、workflow-definition.md 一致
+# 机读定义与 docs/workflow/index.md、workflow-definition.schema.json 对齐；人读说明见同目录 SDD.md
 id: sdd
-version: "1.4.0"
+version: "2.0.0"
 name: SDD 工作流
 description: >-
-  以可验证的需求为单一事实来源，按 stage 推进：需求（Spec）→ 方案（Plan）→ 实现（Implement）
-  → 验证（Verify）→ 完结（Complete）。每段具备 inputs、outputs、agents、steps；主链路按 stages
-  顺序推进。需求变更 exception 见文末。人读说明见 documentation。
-methodology: sdd
-documentation: docs/workflow/SDD/SDD.md
+  以可验证的需求为单一事实来源，按 stages[] 顺序推进：需求（spec）→ 方案（plan）→ 实现（implement）
+  → 验证（verify）→ 完结（complete）。门禁仅出现在各 stage.gates[]；编排拓扑与需求变更策略见 SDD.md / agent.md。
 
 stages:
-  - id: spec
-    key: Spec
+  - name: spec
     title: 需求阶段
     purpose: 把「要做什么、做到什么算对」写清楚，避免实现期反复猜意图。
+    gates:
+      - id: G1
+        type: STARTUP
+        notes: 流程入口阶段
+        conditions:
+          - 工作流已启动，可获取任务意图、上下文与已知约束
+          - 验收标准可测试、无关键歧义；干系人对范围达成一致
     inputs:
       - 业务问题或机会、干系人给出的初始目标与约束（可口头/工单/纪要）
       - 已知非目标或排除范围（若有）
@@ -23,27 +26,29 @@ stages:
       - 验收标准（可逐条勾选）
       - 接口/数据/错误语义（若涉及）
     agents:
-      - id: requirements-analyst
-        role: lead
-        notes: 需求澄清与产出主编排
+      - requirements-analyst
     steps:
-      - id: align-problem-scope
+      - name: align-problem-scope
         title: 对齐问题、目标与非目标
-        summary: 与干系人收敛范围，减少下游返工
-      - id: define-acceptance
+        purpose: 与干系人收敛范围，减少下游返工
+      - name: define-acceptance
         title: 定义可测的验收标准
-        outputs:
-          - 验收标准列表（与需求条目可追溯）
-    exit_criteria: 验收标准可测试、无关键歧义；干系人对范围达成一致。
+        purpose: 产出与需求条目可追溯的验收标准列表
 
-  - id: plan
-    key: Plan
+  - name: plan
     title: 方案阶段
     purpose: >-
       在已批准需求约束下分解任务、识别风险与依赖，确定实现顺序；并预先约定如何验证，
       避免实现结束才补测试思路。
+    gates:
+      - id: G2
+        type: STARTUP
+        notes: 承接 Spec 产出后的方案与验证设计门禁
+        conditions:
+          - 需求阶段产出已齐备：问题与目标、边界、可测验收标准可追溯
+          - 每项任务可映射到需求条目；测试方案已覆盖全部验收标准且无未决缺口；无未解决的阻塞依赖
     inputs:
-      - 已批准或可追踪变更的需求产出（Spec 段 outputs）
+      - 已批准或可追踪变更的需求产出（spec 段 outputs）
     outputs:
       - 任务拆解与优先级
       - 技术方案要点（与需求的对应关系）
@@ -52,30 +57,28 @@ stages:
         数据与环境；执行与门禁
       - 风险与回滚/兼容策略（如需要）
     agents:
-      - id: system-architect
-        role: lead
-        notes: 架构与方案主编排
-      - id: qa-engineer
-        role: participant
-        notes: 协同定义测试方案与验收映射
+      - system-architect
+      - qa-engineer
     steps:
-      - id: task-breakdown
+      - name: task-breakdown
         title: 任务拆解与依赖排序
-        agents: [system-architect]
-      - id: test-plan-and-trace
+        purpose: 在架构主导下完成任务拆解、优先级与依赖排序
+      - name: test-plan-and-trace
         title: 测试方案与验收标准映射
-        summary: 保证后续 Verify 可按方案执行
-        agents: [qa-engineer, system-architect]
+        purpose: 形成可执行、可追溯的验证依据，保证后续 verify 可按方案执行
         outputs:
           - 已定稿的测试方案与追溯矩阵（或等价列表）
-    exit_criteria: >-
-      每项任务可映射到需求条目；测试方案已覆盖全部验收标准且无未决缺口；
-      无未解决的阻塞依赖。
 
-  - id: implement
-    key: Implement
+  - name: implement
     title: 实现阶段
     purpose: 按方案交付代码与配置，变更范围受已批准需求约束。
+    gates:
+      - id: G3
+        type: IMPLEMENTATION
+        notes: 实现与自检门禁
+        conditions:
+          - 方案阶段产出已可用：已批准需求、已定稿方案（含任务顺序）与测试方案
+          - 本地构建通过；自检与代码规范满足团队约定
     inputs:
       - 已批准需求与已定稿方案（含任务顺序）
       - 团队仓库约定与分支策略（若有）
@@ -83,24 +86,27 @@ stages:
       - 满足方案的代码与配置变更
       - 可构建、可自检的提交历史（小步为佳）
     agents:
-      - id: software-engineer
-        role: lead
-    principles:
-      - 实现仅覆盖已批准需求；需求变更应回到需求阶段（Spec）或方案阶段（Plan）修订后再继续
-      - 小步提交，保持可审查、可回滚
+      - software-engineer
     steps:
-      - id: implement-changes
+      - name: implement-changes
         title: 编码与配置实现
-      - id: local-build-and-lint
+        purpose: 按已定稿方案完成代码与配置变更
+      - name: local-build-and-lint
         title: 本地构建与规范自检
+        purpose: 产出通过本地构建且符合团队规范的变更集
         outputs:
           - 通过本地构建的变更集
-    exit_criteria: 本地构建通过；自检与代码规范满足团队约定。
 
-  - id: verify
-    key: Verify
+  - name: verify
     title: 验证阶段
     purpose: 证明实现满足需求与验收标准，而非「感觉能跑」。
+    gates:
+      - id: G4
+        type: SUBMISSION
+        notes: 提交前质量与证据门禁
+        conditions:
+          - 构建通过的可测产物可用；已定稿测试方案与验收标准条目齐备
+          - 验收标准全部满足，或经明确签字/记录接受的例外
     inputs:
       - 构建通过的可测产物
       - 方案阶段已定稿的测试方案
@@ -109,108 +115,70 @@ stages:
       - 测试执行记录与结果（自动 + 必要的手动）
       - 已知限制与例外说明（若有）
     agents:
-      - id: qa-engineer
-        role: lead
-        notes: 测试方案执行与结果主编排
-      - id: code-reviewer
-        role: participant
-      - id: security-auditor
-        role: participant
+      - qa-engineer
+      - code-reviewer
+      - security-auditor
     steps:
-      - id: run-test-plan
+      - name: run-test-plan
         title: 按测试方案执行（自动 + 必要手动）
-        summary: 实现落地后可细化用例与数据
-        agents: [qa-engineer]
+        purpose: 按方案执行测试并在实现落地后可细化用例与数据，产出与验收标准逐条对照的结果
         outputs:
           - 与验收标准逐条对照的结果
-      - id: parallel-review
+      - name: parallel-review
         title: 代码质量与安全并行审查
-        summary: 与 plan.md 开发后并行审查一致；可与上一步迭代直至出口
-        agents: [code-reviewer, security-auditor]
-      - id: regression-and-known-limits
+        purpose: 与 plan.md 开发后并行审查一致；可与上一步迭代直至迁出条件满足
+      - name: regression-and-known-limits
         title: 回归与已知限制评估
-        summary: 回归相关路径；记录已知限制并评估是否可接受
-        agents: [qa-engineer]
-    exit_criteria: 验收标准全部满足，或经明确签字/记录接受的例外。
+        purpose: 覆盖回归相关路径；记录已知限制并评估是否可接受
 
-  - id: complete
-    key: Complete
+  - name: complete
     title: 完结阶段
     purpose: >-
-      SDD 主链末段（Verify→Complete）：在验证已通过后，对需求作最终规约与定稿，
-      将 Spec/Plan/Implement/Verify 各段约定产出合并整理入知识库，并完成仓库与发布收口。
+      SDD 主链末段（verify→complete）：在验证已通过后，对需求作最终规约与定稿，
+      将 spec/plan/implement/verify 各段约定产出合并整理入知识库，并完成仓库与发布收口。
+    gates:
+      - id: G5
+        type: DELIVERY
+        notes: 交付与归档门禁
+        conditions:
+          - 验证阶段结论已齐备：测试与审查记录完备，已知限制与例外（若有）已按团队规则处置
+          - >-
+            需求规约已定稿且可追溯至 spec 与 verify；知识库整理已覆盖上游各段关键产出；
+            文档与代码仓库状态一致；发布或合并流程结束
     inputs:
-      # 与 SDD.md 中「上游 stage → Complete」表一致；应对齐各 stage 的 outputs
-      - "Verify：验证通过记录或已批准例外；测试执行与审查结论；已知限制说明（若有）"
-      - "Spec：本周期需求与验收条文（规约底稿）"
-      - "Plan：已定稿方案、任务拆解、测试方案及与验收的映射"
-      - "Implement：变更集说明、与需求/方案对照的实作差异（若有）"
+      - "verify：验证通过记录或已批准例外；测试执行与审查结论；已知限制说明（若有）"
+      - "spec：本周期需求与验收条文（规约底稿）"
+      - "plan：已定稿方案、任务拆解、测试方案及与验收的映射"
+      - "implement：变更集说明、与需求/方案对照的实作差异（若有）"
       - 待合并分支或发布清单（若适用）
       - 团队知识库形态与入库规范（RAG/文档库/Wiki 等约定）
     outputs:
-      - 需求规约/定稿（与 Spec 验收、Verify 结论、实作差异一致，可作下一周期基线）
+      - 需求规约/定稿（与 spec 验收、verify 结论、实作差异一致，可作下一周期基线）
       - 知识库更新（去重分类建链；可指回本任务在 SDD 链路上的各段产出）
-      - 变更说明（行为、配置、迁移），与 Implement 交付对齐
+      - 变更说明（行为、配置、迁移），与 implement 交付对齐
       - 后续事项（技术债、监控项）列表（可选）
     agents:
-      - id: requirements-analyst
-        role: lead
-        notes: 需求规约与知识库业务内容主编排
-      - id: system-architect
-        role: participant
-        notes: 方案/架构与测试方案要点结构化入库
-      - id: software-engineer
-        role: participant
-        notes: 代码分支合并与仓库对齐
-      - id: qa-engineer
-        role: participant
-        notes: 可选；验证证据摘要入知识库
+      - requirements-analyst
+      - system-architect
+      - software-engineer
+      - qa-engineer
     steps:
-      - id: finalize-requirement-norms
+      - name: finalize-requirement-norms
         title: 需求规约与定稿
-        summary: 以 Verify 为约束，对 Spec 需求与验收定稿，吸收例外及 Implement 相对 Plan 的差异
-        agents: [requirements-analyst]
+        purpose: 以 verify 为约束，对 spec 需求与验收定稿，吸收例外及 implement 相对 plan 的差异
         inputs:
-          - Verify 结论与 Spec/Plan 条文
+          - verify 结论与 spec/plan 条文
         outputs:
           - 需求规约/定稿文档或等价物
-      - id: merge-organize-knowledge-base
+      - name: merge-organize-knowledge-base
         title: 合并整理并写入知识库
-        summary: 汇总 Spec/Plan/Implement/Verify 相关材料，去重分类建链后按规范入库
-        agents: [requirements-analyst, system-architect]
+        purpose: 汇总 spec/plan/implement/verify 相关材料，去重分类建链后按规范入库
         inputs:
           - 各上游 stage 的约定产出与可追溯引用（任务 id、分支、文档路径等）
         outputs:
           - 知识库条目或索引更新记录
-      - id: repo-merge-and-release
+      - name: repo-merge-and-release
         title: 仓库与发布收口
-        summary: 变更说明与代码/文档对齐，合并或发布决策
-        agents: [software-engineer]
+        purpose: 变更说明与代码/文档对齐，完成合并或发布决策
         outputs:
           - 变更说明；仓库与发布流程闭环
-    exit_criteria: >-
-      需求规约已定稿且可追溯至 Spec 与 Verify；知识库整理已覆盖上游各段关键产出；
-      文档与代码仓库状态一致；发布或合并流程结束。
-
-exceptions:
-  - id: requirement-change
-    from_key: "*"
-    to_key: Spec
-    condition: 需求变更
-    notes: 回到需求阶段（Spec），再向下游同步
-
-# 与 docs/plan.md §4 对应：Agent 拓扑（调谁）；与 stages 的交付/门禁互补
-agent_pipeline:
-  main_chain:
-    - requirements-analyst
-    - system-architect
-    - software-engineer
-    - qa-engineer
-  parallel_after:
-    software-engineer:
-      - code-reviewer
-      - security-auditor
-  notes:
-    - 默认主链路：需求 -> 架构 -> 开发 -> 测试
-    - code-reviewer 与 security-auditor 对开发产物并行审查
-    - 任一环节阻塞时，返回上游 Agent 修正后再进入下一环节

@@ -47,7 +47,7 @@ flowchart LR
 `Coordinator` 默认输出结构：
 
 1. 当前阶段与状态
-2. 门禁结果（G1~G4）
+2. 门禁结果（如 SDD 机读定义中的 G1～G5 等）
 3. 关键风险与阻塞项
 4. 下一步动作（CONTINUE/ASK_USER/DISPATCH_AGENT/REPLAN/STOP）
 5. 需要用户确认的问题（如有）

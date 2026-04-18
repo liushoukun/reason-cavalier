@@ -21,7 +21,7 @@ Workflow 只定义流程语义，不承担运行时执行职责：
 - 从流程控制语境，称为门禁（`gate item`）
 - 从阶段准入语境，称为前置要求
 
-统一规则：**进入阶段前必须通过该阶段门禁**。阶段入口约束由 `stage.gates[].entryCriteria[]` 表达。
+统一规则：**进入阶段前必须通过该阶段门禁**。判定条件由 `stage.gates[].conditions[]` 表达（与门禁 `type` 一并供 Coordinator 解释执行）。
 
 ### 1.2 stages（阶段）
 
@@ -43,11 +43,12 @@ Workflow 只定义流程语义，不承担运行时执行职责：
 
 ### 1.3 gates（阶段门禁集合）
 
-`stage.gates[]` 定义阶段的进入与离开条件。每个门禁项建议包含：
+`stage.gates[]` 为 **门禁项（`gate_item`）** 的数组。每个门禁项包含：
 
 - `type`：门禁类型（`STARTUP` / `IMPLEMENTATION` / `SUBMISSION` / `DELIVERY` / `CUSTOM`）
-- `entryCriteria[]`：阶段进入条件（前置要求，至少 1 条）
-- `exitCriteria[]`：阶段离开条件（迁移要求，至少 1 条）
+- `conditions[]`：须逐条判定的条件清单（至少 1 条；不区分「准入 / 迁出」字段名，由编排与 `type` 约定在阶段内何时评估哪些条目）
+
+可选字段（与 schema 一致时）：`id`、`notes`。
 
 统一判定语义：
 
@@ -64,8 +65,7 @@ Workflow 主流程由 `stages[]` 顺序直接确定：`stages[i] -> stages[i+1]`
 约束如下：
 
 - `stages[]` 必须按执行顺序声明，且至少包含 1 个阶段
-- 进入 `stages[i]` 前，必须满足该阶段所有必需门禁项的 `entryCriteria[]`
-- 从 `stages[i]` 迁移到 `stages[i+1]` 前，必须满足该阶段所有必需门禁项的 `exitCriteria[]`
+- 阶段推进（进入 `stages[i]` 与迁出至 `stages[i+1]`）时，Coordinator 必须按约定对该阶段 `gates[]` 中各 `gate_item` 的 `conditions[]` 完成判定（具体评估时机与条目的对应关系由工作流侧约定，机读层只提供 `type` + `conditions[]`）
 - 流程图保持 DAG 语义（无环），确保推进可预测、可恢复
 
 ```mermaid
@@ -83,7 +83,7 @@ flowchart LR
 ## 3. 运行边界
 
 - `Workflow`：定义阶段与门禁语义
-- `Coordinator`：按 `stages[]` 顺序推进，并执行阶段入口/出口门禁判定
+- `Coordinator`：按 `stages[]` 顺序推进，并执行各阶段 `gates[]` 的门禁判定（基于 `type` 与 `conditions[]`）
 - `Task`：保存运行时状态、证据和 checkpoint，不定义流程结构
 
 ---

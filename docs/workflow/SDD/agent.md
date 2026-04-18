@@ -2,7 +2,7 @@
 
 ## 1. 目标
 
-定义 SDD 工作流中的 Agent 角色、协作链路、路由规则与输出规范，作为 `docs/workflow/SDD/sdd.workflow.yaml` 中 `stages.agents` 与 `agent_pipeline` 的人类可读说明。
+定义 SDD 工作流中的 Agent 角色、协作链路、路由规则与输出规范。机读工作流中 **`stages[].agents[]` 仅为字符串标识列表**（编排提示）；**主链与并行边** 不在 [`../workflow-definition.schema.json`](../workflow-definition.schema.json) 内，由本文件与 [`SDD.md`](SDD.md) 描述，供 Coordinator / 编排策略使用。
 
 ---
 
@@ -90,4 +90,4 @@ flowchart LR
 
 - 机器可执行定义：`docs/workflow/SDD/sdd.workflow.yaml`
 - 角色说明与协作说明：本文件
-- 如有冲突，以 `sdd.workflow.yaml` 为执行准，本文件用于解释与评审
+- 如有冲突，以 `sdd.workflow.yaml` 中 **阶段、门禁、输入产出与步骤** 为机读准绳；**调用拓扑与路由** 以本文件为准并与 `SDD.md` 一致

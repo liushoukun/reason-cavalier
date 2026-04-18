@@ -60,7 +60,7 @@
 
 - `id`（必填）
 - `type`（必填，`STARTUP|IMPLEMENTATION|SUBMISSION|DELIVERY|CUSTOM`）
-- `criteria[]`（必填，至少 1 条）
+- `conditions[]`（必填，至少 1 条）
 - `notes`（可选）
 
 ## 5. 一致性约束
