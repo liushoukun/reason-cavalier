@@ -1,6 +1,6 @@
 ---
 name: call-reason-cavalier
-description: Use when a task needs staged execution, gate checks with evidence, or failure recovery (retry/replan/rollback) under a single coordinator—load this skill and workflow-protocol before acting
+description: Use when a task needs staged execution, gate checks with evidence, or failure recovery (retry/replan/rollback) under a single coordinator—also when `.ai/tasks/*/task.yaml` or a `feat|bug|…`-prefixed task_id appears; load this skill, then workflow-protocol and/or task-protocol before acting
 ---
 
 <SUBAGENT-STOP>
@@ -12,7 +12,9 @@ description: Use when a task needs staged execution, gate checks with evidence, 
 
 若本技能适用，则下列约束**不可协商**：不得跳过 workflow 校验、不得无证据过门禁、不得绕过 coordinator 擅自推进阶段、恢复顺序固定为 `retry → replan → rollback`。
 
-不确定是否适用时，默认**先 Read 本文件 + `workflow-protocol.md`** 再决定；误判为「不适用」而跳过，比多读两行代价更大。
+不确定是否适用时，默认**先 Read 本文件**，再按需 Read `workflow-protocol.md` / `task-protocol.md` 再决定；误判为「不适用」而跳过，比多读两行代价更大。
+
+**任务快照信号（命中任一即与 `task-protocol.md` 相关）**：仓库存在 `.ai/tasks/**/task.yaml`；用户给出或反复提及形如 `{feat|bug|refactor|test|doc|chore}-YYMMDDXXX-kebab-name` 的 `task_id`；用户要求继续/恢复/写入任务快照、对齐任务系统。
 </EXTREMELY-IMPORTANT>
 
 ## 指令优先级
@@ -20,7 +22,7 @@ description: Use when a task needs staged execution, gate checks with evidence, 
 本技能覆盖「默认即兴编排」的行为，但**用户显式指令始终优先**（例如 `AGENTS.md`、用户当场说「不要门禁 / 不要 workflow」）。用户要简化流程时，听用户的；用户未豁免时，按本技能执行。
 
 1. 用户显式约束（最高）
-2. 本技能 + `workflow-protocol.md`
+2. 本技能 + `workflow-protocol.md` +（涉及任务快照时）`task-protocol.md`
 3. 模型默认工作方式（最低）
 
 ## 何时使用本技能
@@ -30,10 +32,29 @@ description: Use when a task needs staged execution, gate checks with evidence, 
 - 需要**分阶段**推进（多 Stage，或有明确的「做完 A 才能做 B」）
 - 需要**门禁**与**证据**（例如：未跑验证不得宣称完成、缺产物不得进入下一阶段）
 - 需要**失败恢复**语义（`retry` / `replan` / `rollback` 之一或组合）
+- 需要按 **`.ai/tasks/*/task.yaml`** 持久化、恢复或对齐字段（见下节「快速识别」）
 
 ## 如何在 Cursor 中加载
 
-当本技能出现在会话的可用技能列表中时：**先用 Read 加载本文件**，执行编排前再 Read `skills/call-reason-cavalier/workflow-protocol.md`（正文已读过且未改版本可不复读，但协议更新后必须重读）。
+当本技能出现在会话的可用技能列表中时：**先用 Read 加载本文件**，再按场景 Read：
+
+| 场景 | Read |
+|------|------|
+| workflow 阶段 / 门禁 / 恢复语义 | `skills/call-reason-cavalier/workflow-protocol.md` |
+| 任务快照 `task.yaml`、task_id、落盘与恢复 | `skills/call-reason-cavalier/task-protocol.md` |
+| 二者都涉及 | 两个都 Read |
+
+正文已读过且文件未改版本可不复读；**任一协议文件更新后必须重读**。
+
+## 任务快照（task.yaml）快速识别
+
+**一眼条件（任一成立）→ Read `task-protocol.md`，并严格按其「读写与恢复约定」操作 `task.yaml`：**
+
+- 路径：`.ai/tasks/<任意目录>/task.yaml` 已存在或用户要求创建
+- 标识：`task_id` 匹配 `^(feat|bug|refactor|test|doc|chore)-\d{9}-[a-z0-9]+(?:-[a-z0-9]+)*$`
+- 语义：用户说继续任务、恢复中断、更新 `notes`/`status`/`stages`、对齐 Open Plugins 任务格式
+
+**与 workflow 协议的分工**：`workflow-protocol.md` 描述 **workflow YAML**（阶段、门禁、schema）；`task-protocol.md` 描述 **任务快照**（单文件 `task.yaml`）。常见组合：`task.yaml` 的 `workflow` 指向具体 workflow 标识，`stages` 记录各阶段状态与 `artifacts`；编排时两处约束同时满足，不得用口头状态替代文件字段。
 
 ## 编排执行流程（The Rule）
 
@@ -44,7 +65,7 @@ description: Use when a task needs staged execution, gate checks with evidence, 
 flowchart TD
   R[收到请求] --> Q{是否存在阶段/门禁/恢复可能?}
   Q -->|否| N[按常规任务处理]
-  Q -->|是或不确定| L[Read 本技能 + workflow-protocol]
+  Q -->|是或不确定| L[Read 本技能 + workflow-protocol / task-protocol]
   L --> T[绑定 task_id，选定 workflow]
   T --> V{Schema 校验通过?}
   V -->|否| B[blocked：修正 workflow 或说明无法执行]
@@ -71,7 +92,7 @@ flowchart TD
 
 ## 最小执行流程（ checklist 级）
 
-1. 绑定 `task_id` 并选择 workflow（任务显式指定优先，否则按意图匹配）
+1. 若存在或即将写入 **任务快照**：Read 对应 `task.yaml` 与 `task-protocol.md`，再绑定其中 `workflow` / `stages` 与 coordinator 的 `task_id`；无快照则绑定会话级 `task_id` 并选择 workflow（任务显式指定优先，否则按意图匹配）
 2. 按 schema 校验 workflow（**禁止**跳过）
 3. 执行当前阶段，记录输入 / 产出与**可复核**证据
 4. 执行门禁判定：通过则进入下一顺位阶段；否则按 `retry → replan → rollback` 恢复
@@ -87,4 +108,5 @@ flowchart TD
 ## 详细协议与示例
 
 - 字段、Stage/Step/Gate 定义与一致性约束：`skills/call-reason-cavalier/workflow-protocol.md`
+- 任务快照 `task.yaml` 目录、必填字段、状态与恢复：`skills/call-reason-cavalier/task-protocol.md`
 - 示例 workflow：`skills/call-reason-cavalier/workflows/dev.workflow.yaml`
