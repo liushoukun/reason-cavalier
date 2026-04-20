@@ -5,6 +5,22 @@ description: 在 .ai/tasks 下创建新任务目录，写入符合 task-protocol
 
 你正在执行 **Reason Cavalier：新建任务存储**。目标是在仓库根下创建 `.ai/tasks/<task_id>/`，形成可被 `call-reason-cavalier` 技能消费的**最小任务存储**。
 
+## 命令语义（先判定上下文，再决定动作）
+
+- 触发 `/task` 时，表示当前对话进入**任务上下文模式**，后续动作默认以指定任务为锚点执行。
+- 若命令中附带 `{task}` 目录或可解析 `task_id`（例如 `/task .ai/tasks/feat-260420001-xxx`），表示**绑定已有任务**，优先按该任务当前进度推进，而不是新建任务。
+- 若命令后追加其他技能（例如 `/task {task目录} /brainstorming`），其语义是：在该任务上下文内执行对应技能，产出需回流到同一 `task_id` 的状态与证据链。
+- 仅当无法识别已有任务上下文，或用户明确要求“新建任务存储”时，才进入本文第 2~5 节的新建流程。
+
+## 会话环境识别（必须先执行）
+
+1. 检查用户输入与当前会话是否已指定任务上下文（`task_id`、`.ai/tasks/<task_id>/`、`task.yaml`）。
+2. 若已绑定任务：
+   - 读取该任务目录下 `task.yaml`（必要时同时读取 `workflow.yaml`）。
+   - 按 `call-reason-cavalier` + `task-protocol.md` + `workflow-protocol.md` 继续当前阶段，不重复创建任务。
+3. 若未绑定任务且用户意图为“创建任务存储”，执行后续新建流程（第 0~6 节）。
+4. 若意图不明，先简短追问一次；仍不明确时默认按“新建任务存储”处理。
+
 ## 0. 必须先读（不可跳过）
 
 1. **`skills/call-reason-cavalier/SKILL.md`** —— 编排约束、协议加载范围、`task.yaml` 须由脚本生成。
@@ -60,3 +76,12 @@ python skills/call-reason-cavalier/scripts/new-task.py --type <type> --title "<t
 
 - 新目录路径与 `task_id`
 - 提醒后续编排应加载 **`call-reason-cavalier`** 技能（或 Read `SKILL.md`），并**校验** `workflow.yaml` 后再进入执行态（与 `workflow-protocol.md` 第 6 节一致）
+- 若本次是“绑定已有任务”而非新建：汇报当前绑定的任务目录、`task_id`、所处阶段与下一步建议动作
+
+## 常见组合示例
+
+```text
+/task .ai/tasks/feat-260420001-add-login /brainstorming
+```
+
+含义：在 `feat-260420001-add-login` 任务上下文中执行 `brainstorming`，结果需回写同一任务的执行脉络（而非创建新任务）。
