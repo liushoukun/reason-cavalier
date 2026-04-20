@@ -275,3 +275,44 @@ flowchart TD
 - 关键决策均可追溯到证据链
 - `Task` 支持跨会话与跨宿主恢复
 - 至少一组端到端样例通过验证
+
+---
+
+## 10. 本仓库文档导航与 Harness 接入
+
+### 10.1 文档地图（人类可读入口）
+
+| 路径 | 说明 |
+|------|------|
+| [`README.md`](../README.md) | 仓库概览与顶层目录说明 |
+| [`AGENTS.md`](../AGENTS.md) | 供代理与工具读取的仓库级约定（与本蓝图互补） |
+| [`docs/index.md`](index.md) | 本文：Harness 架构蓝图与语义边界 |
+| [`docs/skills/index.md`](skills/index.md) | `call-reason-cavalier` 技能方案与编排边界 |
+| [`docs/tasks/index.md`](tasks/index.md) | 任务相关文档入口（若存在子页请从此索引） |
+| [`docs/workflow/index.md`](workflow/index.md) | 工作流文档索引 |
+| [`docs/commands.md`](commands.md) | 命令模板相关说明 |
+
+### 10.2 外部工程如何使用本仓库的 Harness 脚本
+
+被检查对象一般是**外部业务仓库根目录** `<ROOT>`，不是「给本仓库安装插件」本身。检测脚本无第三方依赖，需 Python 3。
+
+```bash
+python skills/harnessing/scripts/harness_check.py <ROOT>
+```
+
+**一条命令**幂等创建阻塞项 `.ai` 目录树（`.ai/`、`.ai/tasks/`、`.ai/workflows/` 及 `.gitkeep`），与 **Harnessing（驾驭化）** [`skills/harnessing/SKILL.md`](../skills/harnessing/SKILL.md) 中的**窄豁免**一致，**无需**用户再确认：
+
+```bash
+python skills/harnessing/scripts/harness_check.py <ROOT> --ensure-blocking-dirs
+```
+
+其余初始化（`AGENTS.md`、`docs/`、`.ai/memory`、`--content-round1` 等）须遵循该技能中的门禁：**未经用户明确同意不得使用**会触及上述路径的 `harness_init.py --apply` 组合；写盘前建议 dry-run，并与用户确认 `--scope`（如 `all`、`ai-only`、`agents`、`docs`）。仅阻塞目录时可用 `harness_init.py <ROOT> --apply --scope ai-only`，与上一行检测命令写盘范围等价。
+
+### 10.3 与本蓝图一致的落盘分工（外部工程）
+
+- **`.ai/tasks/`**：任务与执行上下文持久化（如 `task.yaml` 等）
+- **`.ai/workflows/`**：工作流模板或运行期工作流落盘占位
+- **`.ai/memory/`**（建议）：执行记忆、可消费中间态
+- **`docs/`**：正式归档与规格；与 `.ai/memory/` 区分，避免执行态直接覆盖正式文档
+
+外部工程是否满足最小可运转条件，以 `harness_check.py` 的退出码与输出为准：`0` 无阻塞，`1` 有阻塞，`2` 仅有建议或警告。
