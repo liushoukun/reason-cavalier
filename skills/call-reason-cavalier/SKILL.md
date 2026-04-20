@@ -1,112 +1,132 @@
 ---
 name: call-reason-cavalier
-description: Use when a task needs staged execution, gate checks with evidence, or failure recovery (retry/replan/rollback) under a single coordinator—also when `.ai/tasks/*/task.yaml` or a `feat|bug|…`-prefixed task_id appears; load this skill, then workflow-protocol and/or task-protocol before acting
+description: 在出现分阶段推进、带证据的门禁、或需在单一协调者下做失败恢复（retry→replan→rollback）时使用；亦适用于已存在/将写入的 .ai/tasks/*/task.yaml、符合命名规范的 feat|bug|… 前缀 task_id、或用户要求继续/对齐任务快照。加载后须再 Read workflow-protocol 与/或 task-protocol 再行动。
 ---
 
 <SUBAGENT-STOP>
-若你作为子代理被派发来执行某个具体步骤，且主会话已指定由 coordinator 持有 `task_id` 与阶段状态：除非主会话明确要求你「同时承担编排」，否则不要套用本技能的完整生命周期；只完成委派步骤并把证据回传给 coordinator。
+若你作为子代理仅被委派执行某个具体步骤，且主会话已指定由 coordinator 持有 `task_id` 与阶段状态：除非主会话明确要求你「同时承担编排」，否则不要套用本技能的完整生命周期；只完成委派步骤，并把可复核证据回传给 coordinator。
 </SUBAGENT-STOP>
 
 <EXTREMELY-IMPORTANT>
-只要任务**有可能**需要「分阶段推进 + 门禁 + 可恢复」，你就**必须**按本技能执行，而不是凭直觉拆步骤。
+下列情形**任一**成立，即视为本技能适用；不确定时按「适用」处理（多读协议的成本低于误判跳过）：
 
-若本技能适用，则下列约束**不可协商**：不得跳过 workflow 校验、不得无证据过门禁、不得绕过 coordinator 擅自推进阶段、恢复顺序固定为 `retry → replan → rollback`。
+- 需要阶段、门禁、可复核证据，或固定顺序的恢复策略。
+- 仓库中已有或即将写入 `.ai/tasks/**/task.yaml`，或对话中反复出现符合本文「task_id 命名规范」的 `task_id`。
 
-不确定是否适用时，默认**先 Read 本文件**，再按需 Read `workflow-protocol.md` / `task-protocol.md` 再决定；误判为「不适用」而跳过，比多读两行代价更大。
-
-**任务快照信号（命中任一即与 `task-protocol.md` 相关）**：仓库存在 `.ai/tasks/**/task.yaml`；用户给出或反复提及形如 `{feat|bug|refactor|test|doc|chore}-YYMMDDXXX-kebab-name` 的 `task_id`；用户要求继续/恢复/写入任务快照、对齐任务系统。
+适用则**必须**按本文与所引用协议的约束执行编排；不得用「任务小」「先改再说」等理由绕过校验与证据。
 </EXTREMELY-IMPORTANT>
 
-## 指令优先级
+## 1. 与其他技能的协作顺序
 
-本技能覆盖「默认即兴编排」的行为，但**用户显式指令始终优先**（例如 `AGENTS.md`、用户当场说「不要门禁 / 不要 workflow」）。用户要简化流程时，听用户的；用户未豁免时，按本技能执行。
+与 **using-superpowers** 及多技能并存时的总原则一致：
 
-1. 用户显式约束（最高）
-2. 本技能 + `workflow-protocol.md` +（涉及任务快照时）`task-protocol.md`
-3. 模型默认工作方式（最低）
+1. **用户显式约束**（含 `AGENTS.md`、当场豁免）——最高。
+2. **流程类 superpowers 技能**（如 brainstorming、systematic-debugging）——决定「先想清楚 / 先怎么查」时，**先于**本技能的具体阶段执行；在其产出满足入口后，再回到本技能的 workflow / 快照推进。
+3. **本技能 + `workflow-protocol.md` +（涉及 `task.yaml` 时）`task-protocol.md`**——覆盖与「分阶段 + 门禁 + 快照」相关的默认即兴编排。
+4. **模型默认行为**——最低。
 
-## 何时使用本技能
+在 **Cursor** 中：通过 **Read** 加载本文件与协议全文；加载后发现不适用可退出本框架，但若仍存在编排/快照需求，应重新评估是否适用。
 
-满足**任一**即应启用（含「只有一点像」的边界情况——先 Read 再判定）：
+## 2. 适用范围（触发器）
 
-- 需要**分阶段**推进（多 Stage，或有明确的「做完 A 才能做 B」）
-- 需要**门禁**与**证据**（例如：未跑验证不得宣称完成、缺产物不得进入下一阶段）
-- 需要**失败恢复**语义（`retry` / `replan` / `rollback` 之一或组合）
-- 需要按 **`.ai/tasks/*/task.yaml`** 持久化、恢复或对齐字段（见下节「快速识别」）
+命中 **任一** 即启用本技能：
 
-## 如何在 Cursor 中加载
+| 类别 | 触发条件 |
+|------|----------|
+| 流程 | 分阶段推进；门禁判定；失败恢复须按 `retry → replan → rollback` **顺序**执行，不得跳步。 |
+| 工件 | 存在或将创建 `.ai/tasks/<task_id>/` 下的 `task.yaml`；或用户要求继续、恢复、对齐任务快照。 |
+| 标识 | 对话中出现符合第 5 节正则的 `task_id`。 |
 
-当本技能出现在会话的可用技能列表中时：**先用 Read 加载本文件**，再按场景 Read：
+## 3. 刚性规则（用户未显式豁免时不可协商）
 
-| 场景 | Read |
-|------|------|
-| workflow 阶段 / 门禁 / 恢复语义 | `skills/call-reason-cavalier/workflow-protocol.md` |
-| 任务快照 `task.yaml`、task_id、落盘与恢复 | `skills/call-reason-cavalier/task-protocol.md` |
-| 二者都涉及 | 两个都 Read |
+- 不得跳过对 workflow 的 **schema 校验** 即进入执行态。
+- 门禁须附 **可复核证据**（命令输出、路径、日志片段等）；口头断言不算过门。
+- 编排职责归 **coordinator**；子代理不得各自推进阶段并分叉状态。
+- 「先执行、后补校验」视为违规。
 
-正文已读过且文件未改版本可不复读；**任一协议文件更新后必须重读**。
+## 4. 加载与阅读顺序（每次任务或协议有更新时重读）
 
-## 任务快照（task.yaml）快速识别
+按序执行，**不得颠倒**：
 
-**一眼条件（任一成立）→ Read `task-protocol.md`，并严格按其「读写与恢复约定」操作 `task.yaml`：**
+1. **Read** 本文件（`SKILL.md`）。
+2. 若涉及阶段 / 门禁 / 恢复：**Read** `skills/call-reason-cavalier/workflow-protocol.md`。
+3. 若涉及 `task.yaml` / `task_id` / 落盘与恢复：**Read** `skills/call-reason-cavalier/task-protocol.md`。
+4. 执行 **`commands/task.md`** 所述流程前须已 Read 本文件；`task.yaml` 须由 `scripts/new-task.py` 生成；`workflow.yaml` 须为 `workflows/dev.workflow.yaml` 的完整副本；禁止手写流水号与 `uid`。
 
-- 路径：`.ai/tasks/<任意目录>/task.yaml` 已存在或用户要求创建
-- 标识：`task_id` 匹配 `^(feat|bug|refactor|test|doc|chore)-\d{9}-[a-z0-9]+(?:-[a-z0-9]+)*$`
-- 语义：用户说继续任务、恢复中断、更新 `notes`/`status`/`stages`、对齐 Open Plugins 任务格式
+## 5. task_id 命名规范（全仓库唯一权威）
 
-**与 workflow 协议的分工**：`workflow-protocol.md` 描述 **workflow YAML**（阶段、门禁、schema）；`task-protocol.md` 描述 **任务快照**（单文件 `task.yaml`）。常见组合：`task.yaml` 的 `workflow` 指向具体 workflow 标识，`stages` 记录各阶段状态与 `artifacts`；编排时两处约束同时满足，不得用口头状态替代文件字段。
+以下规则为全仓库对 `task_id` 的**唯一**展开说明；`task-protocol.md`、`commands/task.md` 等仅引用本节，不再重复细则。
 
-## 编排执行流程（The Rule）
+- **形式**：`{type}-{YYMMDD}{NNN}-{name}`
+  - **`type`**：`feat|bug|refactor|test|doc|chore`；须与 `task.yaml` 中 `type` 一致，且为 `task_id` 首段。
+  - **`YYMMDD`**：UTC 日历日六位数字。
+  - **`NNN`**：当日三位流水号，自 `001` 递增；**仅允许**由 `scripts/new-task.py` 在扫描已有 `.ai/tasks/<task_id>/` 后分配（禁止手填）。
+  - **`name`**：kebab-case，仅 `a-z`、`0-9`、`-`；未传 `--slug` 时由 `--title` 转写（UTF-8 → 小写 ASCII kebab），或 `--slug` 显式指定。
+- **校验正则**（与 `new-task.py` 落盘一致）：
 
-**选定 workflow → 校验 → 执行 Stage → 留证据 → 过门禁 → 迁移或恢复 → 输出结论。**  
-「先干两步再补校验」一律视为违规。
+  `^(feat|bug|refactor|test|doc|chore)-\d{9}-[a-z0-9]+(?:-[a-z0-9]+)*$`
+
+- **示例**：`feat-260420001-add-trading-domain-code`、`bug-260415001-checkout-timeout`
+- **`uid`**：与 `task_id` 独立；须为 ULID，**仅允许**由 `new-task.py` 生成。
+
+## 6. 新建任务目录与 task.yaml（stdlib only）
+
+在仓库根目录执行：
+
+```bash
+python skills/call-reason-cavalier/scripts/new-task.py --type feat --title "你的任务标题" [--slug optional-kebab-slug] [--workflow dev]
+```
+
+- 落盘为原子写（临时文件再替换）。常用：`--repo-root`、`--host-app`、`--dry-run`。
+- 脚本**只生成 `task.yaml`**；完整任务存储还须将 `workflows/dev.workflow.yaml` 复制为同目录 `workflow.yaml`（见 `commands/task.md`）。
+
+## 7. 协议分工
+
+| 对象 | 协议 | 职责 |
+|------|------|------|
+| `workflow.yaml` | `workflow-protocol.md` | 阶段、步骤、门禁、schema；模板见 `workflows/dev.workflow.yaml` |
+| `task.yaml` | `task-protocol.md` | 任务快照、`workflow`/`stages` 与 coordinator 绑定、读写与恢复 |
+
+## 8. 编排主链（须遵守的顺序）
+
+**选定 workflow → Schema 校验 → 执行当前 Stage/Step → 记录证据 → 过门禁 → 迁移或按恢复序处理 → 输出 `complete` 或 `blocked`。**
 
 ```mermaid
 flowchart TD
-  R[收到请求] --> Q{是否存在阶段/门禁/恢复可能?}
-  Q -->|否| N[按常规任务处理]
-  Q -->|是或不确定| L[Read 本技能 + workflow-protocol / task-protocol]
+  R[收到请求] --> Q{是否可能涉及阶段/门禁/恢复或 task 快照?}
+  Q -->|否| N[常规处理]
+  Q -->|是或不确定| L[Read 本技能 + 所需协议]
   L --> T[绑定 task_id，选定 workflow]
-  T --> V{Schema 校验通过?}
-  V -->|否| B[blocked：修正 workflow 或说明无法执行]
-  V -->|是| S[执行当前 Stage / Step]
-  S --> E[记录输入、产出、证据]
+  T --> V{Schema 通过?}
+  V -->|否| B[blocked：修正配置或说明无法执行]
+  V -->|是| S[执行当前 Stage/Step]
+  S --> E[写入可复核证据]
   E --> G{门禁满足?}
-  G -->|否| F{按序恢复 retry → replan → rollback}
+  G -->|否| F[retry → replan → rollback]
   F --> S
   G -->|是| M{还有下一阶段?}
   M -->|是| S
-  M -->|否| C[输出 complete 或 blocked 结论]
+  M -->|否| C[complete 或 blocked]
 ```
 
-## 红旗（你在合理化时该停下）
+## 9. 危险信号（自我合理化时须停下）
 
 | 想法 | 事实 |
 |------|------|
-| 「先改代码，workflow 稍后补」 | 未通过校验的 workflow 不得进入执行态。 |
-| 「小任务不用门禁」 | 规模小不代表无风险；门禁由协议与任务性质决定，不由「感觉」决定。 |
-| 「证据口头说一下就行」 | 无证据不得通过门禁；口头不算可复核证据。 |
-| 「我先让子代理各自推进」 | 不得绕过 coordinator；子代理产出必须回流到统一 `task_id` 与阶段状态。 |
-| 「跳过 retry 直接 rollback」 | 恢复顺序固定，不得跳步。 |
-| 「我记得协议」 | 协议与示例会变；以当前 Read 到的内容为准。 |
+| 先改代码，workflow 稍后补 | 未通过校验不得进入执行态 |
+| 小任务不用门禁 | 由协议与任务性质决定，不由体量感觉决定 |
+| 证据口头即可 | 门禁要可复核证据 |
+| 子代理各自推进 | 产出须回流统一 `task_id` 与阶段状态 |
+| 跳过 retry 直接 rollback | 恢复顺序固定 |
+| 我记得协议 | 以当前 Read 到的版本为准 |
 
-## 最小执行流程（ checklist 级）
+## 10. 最小检查清单
 
-1. 若存在或即将写入 **任务快照**：Read 对应 `task.yaml` 与 `task-protocol.md`，再绑定其中 `workflow` / `stages` 与 coordinator 的 `task_id`；无快照则绑定会话级 `task_id` 并选择 workflow（任务显式指定优先，否则按意图匹配）
-2. 按 schema 校验 workflow（**禁止**跳过）
-3. 执行当前阶段，记录输入 / 产出与**可复核**证据
-4. 执行门禁判定：通过则进入下一顺位阶段；否则按 `retry → replan → rollback` 恢复
-5. 输出 `complete` 或 `blocked` 结论（含阻塞原因与已有证据）
+1. 有或将写任务快照：**Read** `task.yaml` + `task-protocol.md`，确认 `workflow`、`stages`、`task_id` 一致。
+2. 对 workflow 做 schema 校验（禁止跳过）。
+3. 执行当前阶段并记录证据；门禁不过则按 **retry → replan → rollback** 处理。
+4. 会话结束语为 **`complete`** 或 **`blocked`**（含原因与已有证据）。多步可与 `TodoWrite` 对齐。
 
-若技能内包含多步 checklist，可与 `TodoWrite` 对齐逐步勾选（与 using-superpowers 一致：**有清单就落到可追踪条目**）。
+## 11. 技能类型说明
 
-## 与其他技能的关系
-
-- **流程类技能优先于「直接写代码」**：若同时适用「先想清楚 / 先验证」类技能，先满足其入口条件，再在本技能框架下落地阶段与门禁。
-- **验证类技能**：门禁中的「证据」可与项目内验证命令对齐；具体命令以仓库与用户指令为准。
-
-## 详细协议与示例
-
-- 字段、Stage/Step/Gate 定义与一致性约束：`skills/call-reason-cavalier/workflow-protocol.md`
-- 任务快照 `task.yaml` 目录、必填字段、状态与恢复：`skills/call-reason-cavalier/task-protocol.md`
-- 示例 workflow：`skills/call-reason-cavalier/workflows/dev.workflow.yaml`
+本技能对 **校验、门禁证据、恢复顺序、快照一致性** 为 **刚性**；对具体技术实现细节为 **柔性**（由项目内命令与仓库约定填充）。

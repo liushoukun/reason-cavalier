@@ -50,7 +50,7 @@ flowchart TD
 必填字段：
 
 - `schema_version`：如 `1.0.0`
-- `task_id`：显示 ID，格式 `{type}-{YYMMDDXXX}-{name}`
+- `task_id`：显示 ID；**格式与校验见插件内 `skills/call-reason-cavalier/SKILL.md`「task_id 命名规范」**（唯一权威）
 - `uid`：内部唯一 ID，使用 `ULID`
 - `type`：任务类型白名单 `feat|bug|refactor|test|doc|chore`
 - `title`：任务标题
@@ -64,13 +64,6 @@ flowchart TD
 - `updated_at`
 - `updated_by`：最后一次更新主体（`user|agent|system`）
 - `notes`：最近进展说明
-
-`task_id` 约束：
-
-- `type` 必须与 `task_id` 前缀一致
-- `YYMMDDXXX` 中 `XXX` 为当日递增流水号（`001` 起）
-- `name` 使用 kebab-case（仅 `a-z0-9-`）
-- 示例正则：`^(feat|bug|refactor|test|doc|chore)-\d{9}-[a-z0-9]+(?:-[a-z0-9]+)*$`
 
 `stages` 字段结构（必填）：
 
@@ -136,7 +129,7 @@ notes: 已定位超时发生在 checkout API 重试逻辑
 
 一致性规则：
 
-- `task_id` 必须匹配 `{type}-{YYMMDDXXX}-{name}`
+- `task_id` 必须符合 `skills/call-reason-cavalier/SKILL.md`「task_id 命名规范」及所载正则
 - `type` 必须在白名单 `feat|bug|refactor|test|doc|chore` 中
 - `uid` 必须是合法 ULID 且全局唯一
 - `updated_at >= created_at`

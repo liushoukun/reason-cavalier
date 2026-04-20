@@ -2,7 +2,7 @@
 
 > 定位：Open Plugins 里的任务系统只做一件事——让不同 AI 编码代理都能用同一套文件格式创建、推进、恢复任务。  
 > 原则：文件优先、结构稳定、最小可用，不做重平台能力。  
-> **技能挂载**：`call-reason-cavalier` 将本文件作为任务快照协议；发现 `.ai/tasks/*/task.yaml`、符合规范的 `task_id`，或用户要求继续/恢复任务时，按本规范读写与恢复。
+> **技能挂载**：`call-reason-cavalier` 将本文件作为任务快照协议；发现 `.ai/tasks/*/task.yaml`、符合 `SKILL.md`「task_id 命名规范」的 `task_id`，或用户要求继续/恢复任务时，按本规范读写与恢复。
 
 ## 1. 目标与边界
 
@@ -51,7 +51,7 @@ flowchart TD
 必填字段：
 
 - `schema_version`：如 `1.0.0`
-- `task_id`：显示 ID，格式 `{type}-{YYMMDDXXX}-{name}`
+- `task_id`：显示 ID；**格式、流水号与尾段规则见 `SKILL.md`「task_id 命名规范」**（全仓库唯一权威）
 - `uid`：内部唯一 ID，使用 `ULID`
 - `type`：任务类型白名单 `feat|bug|refactor|test|doc|chore`
 - `title`：任务标题
@@ -65,13 +65,6 @@ flowchart TD
 - `updated_at`
 - `updated_by`：最后一次更新主体（`user|agent|system`）
 - `notes`：最近进展说明
-
-`task_id` 约束：
-
-- `type` 必须与 `task_id` 前缀一致
-- `YYMMDDXXX` 中 `XXX` 为当日递增流水号（`001` 起）
-- `name` 使用 kebab-case（仅 `a-z0-9-`）
-- 示例正则：`^(feat|bug|refactor|test|doc|chore)-\d{9}-[a-z0-9]+(?:-[a-z0-9]+)*$`
 
 `stages` 字段结构（必填）：
 
@@ -137,7 +130,7 @@ notes: 已定位超时发生在 checkout API 重试逻辑
 
 一致性规则：
 
-- `task_id` 必须匹配 `{type}-{YYMMDDXXX}-{name}`
+- `task_id` 必须符合 `SKILL.md`「task_id 命名规范」及所载正则
 - `type` 必须在白名单 `feat|bug|refactor|test|doc|chore` 中
 - `uid` 必须是合法 ULID 且全局唯一
 - `updated_at >= created_at`
