@@ -1,0 +1,76 @@
+%% Reason Cavalier · 分层架构（Workspace / Workflow / Capability）
+%% 可被 Mermaid CLI、IDE 预览或粘贴进 Markdown fenced 代码块中使用
+
+flowchart TB
+  subgraph HOST [宿主适配 · Host]
+    HA[命令与协议入口]
+  end
+
+  subgraph WS [Workspace 层]
+    direction TB
+
+    subgraph RES [Resources · 可调用的环境与资产登记]
+      direction LR
+      REPO[代码仓库]
+      CORP[文档语料]
+      KNOW[知识源]
+      AGDEF[Agent 定义]
+      MCPREG[MCP 服务端]
+      BIND[context_binding / 快照]
+    end
+
+    subgraph TSKBLK [Task · 具体执行的运行任务]
+      direction TB
+      TR["Task / Run · 上下文与语义载体"]
+      PTR[阶段指针与主状态]
+      CP[Checkpoint]
+      ART[Artifact 交付物]
+      EVD[Evidence 证据索引]
+    end
+  end
+
+  subgraph WF [Workflow 层]
+    direction TB
+    TMPL["Workflow 模板<br/>静态阶段与契约<br/>运行期不改变语义"]
+    COOR[Coordinator<br/>编排推进与门禁判罚]
+    POL[policy_snapshot / Policy Engine]
+  end
+
+  subgraph CAP [Capability 层]
+    direction TB
+    AGNT[领域专业 Agent]
+    SKPK[可复用 Skills 技能包]
+    RULEZ[RULES · 项目与领域规则]
+    TLS[Tools / MCP tools]
+  end
+
+  HA --> COOR
+
+  REPO --> BIND
+  CORP --> BIND
+  KNOW --> BIND
+  AGDEF --> BIND
+  MCPREG --> BIND
+  BIND --> TR
+
+  PTR --> TR
+
+  TMPL -.->|装载契约| COOR
+  COOR -->|策略帧与判罚| POL
+  POL -->|门禁结论| COOR
+  COOR <-->|推进 / 回收 / 持久化| TR
+
+  COOR --> CP
+  COOR --> EVD
+
+  COOR --> AGNT
+  COOR --> SKPK
+  RULEZ -.->|启发技能与 Agent 行为| SKPK
+  RULEZ -.->|启发 Agent 行为| AGNT
+
+  AGNT --> TLS
+  SKPK --> TLS
+  AGNT --> ART
+  SKPK --> ART
+  AGNT --> EVD
+  SKPK --> EVD
