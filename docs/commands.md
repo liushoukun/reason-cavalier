@@ -10,6 +10,7 @@
 
 | 文档能力域 | 对 Command 层的要求 |
 |------------|---------------------|
+| **项目空间与 context_binding**（`docs/index.md`） | Catalog 可与 **数据库/服务**落地；编排侧只消费 **绑定快照**。Command 不写第二套目录同步逻辑；创建/恢复时委托 Coordinator 装载 **Catalog + Binding**（与总蓝图第四章一致）。 |
 | **Coordinator 唯一编排入口**（`docs/index.md`） | 用户侧入口应尽量 **薄封装**：不绕过 Coordinator 直接“改流程语义”；Command 负责触发一次 **编排回合**（创建 / 恢复 / 推进 / 恢复动作 / 封账）。 |
 | **Workflow 静态模板**（`docs/workflow/index.md`） | Command 可携带 `workflow_template` 或任务类型提示，但 **不在运行期改写** 模板语义；阶段推进结果仍由 Coordinator 与门禁产出。 |
 | **Task 文件优先**（`docs/tasks/index.md`） | 所有会改变任务态的 Command，最终应落到 `.ai/tasks/*/task.yaml` 的 **读-改-原子写** 约定；续跑以 `task.yaml` + checkpoint 策略为准（与总蓝图 checkpoint 叙述一致时对齐）。 |
@@ -35,8 +36,8 @@
 
 | 建议 `command` 标识（机器名） | 用户可见标题（中文） | 触发场景 | 编排语义（委托 Coordinator） |
 |------------------------------|----------------------|----------|-------------------------------|
-| `rc.task.new` | 新建治理任务 | 用户提出新意图，要在本仓库落盘新 `task.yaml` | 创建 Task、绑定 `workflow_template` 与 `policy_snapshot`、初始化阶段列表、执行 **G1 启动门禁** 所需上下文收集 |
-| `rc.task.resume` | 恢复并续跑任务 | 中断后同一 `task_id` 继续；跨会话续跑 | 加载最新 checkpoint（若已实现）与 `task.yaml`、做 **一致性校验**（策略快照、上下文、依赖），通过后进入可执行态 |
+| `rc.task.new` | 新建治理任务 | 用户提出新意图，要在本仓库落盘新 `task.yaml` | 创建 Task、绑定 `workflow_template` 与 `policy_snapshot`、解析 **项目空间 Catalog** 与 **`context_binding`**（或默认合并后冻结）、初始化阶段列表、执行 **G1 启动门禁** 所需上下文收集 |
+| `rc.task.resume` | 恢复并续跑任务 | 中断后同一 `task_id` 继续；跨会话续跑 | 加载最新 checkpoint（若已实现）与 `task.yaml`、做 **一致性校验**（`policy_snapshot`、`context_binding` manifest、上下文与依赖可用性），通过后进入可执行态 |
 | `rc.coordinator.advance` | 推进当前阶段 | 常规定时“走一步” | 执行当前阶段、回收交付物、写证据索引、跑门禁、产出 `next_step_decision` |
 | `rc.task.provideInput` | 提交用户补充并继续 | `next_step_decision` 为 `ASK_USER` 或 `waiting_input` | 将用户输入写入任务备注/约定字段，清除等待态，触发 **下一编排回合** |
 | `rc.recovery.retry` | 当前阶段重试 | 同阶段失败需重试 | `retry`：同阶段重试（受策略约束） |
