@@ -1,0 +1,387 @@
+classDiagram
+    direction TB
+
+    %% ============================================================
+    %% multica (multica-ai/multica) 数据库领域模型
+    %% 基于 server/migrations 001~040 推断（核心实体与关系，
+    %% 省略索引、CHECK 枚举与历史回滚迁移）
+    %% ============================================================
+
+    %% ===== 身份与访问 =====
+    class User {
+        <<用户>>
+        id : UUID
+        name : TEXT
+        email : TEXT UNIQUE
+        avatar_url : TEXT
+    }
+
+    class Workspace {
+        <<工作区>>
+        id : UUID
+        name : TEXT
+        slug : TEXT UNIQUE
+        settings : JSONB
+        context : TEXT
+        repos : JSONB
+    }
+
+    class Member {
+        <<工作区成员>>
+        workspace_id : UUID
+        user_id : UUID
+        role : owner|admin|member
+    }
+
+    class PersonalAccessToken {
+        <<个人访问令牌>>
+        user_id : UUID
+        token_hash : TEXT
+        token_prefix : TEXT
+        expires_at : TIMESTAMPTZ
+        revoked : BOOL
+    }
+
+    class VerificationCode {
+        <<邮箱验证码>>
+        email : TEXT
+        code : TEXT
+        expires_at : TIMESTAMPTZ
+        used : BOOL
+    }
+
+    %% ===== 智能体 / 运行时 / 技能 =====
+    class Agent {
+        <<智能体>>
+        workspace_id : UUID
+        name : TEXT
+        runtime_mode : local|cloud
+        runtime_id : UUID
+        visibility : workspace|private
+        status : idle|working|blocked|error|offline
+        max_concurrent_tasks : INT
+        tools : JSONB
+        triggers : JSONB
+        instructions : TEXT
+        owner_id : UUID
+    }
+
+    class AgentRuntime {
+        <<智能体运行时>>
+        workspace_id : UUID
+        daemon_id : TEXT
+        runtime_mode : local|cloud
+        provider : TEXT
+        status : online|offline
+        device_info : TEXT
+        last_seen_at : TIMESTAMPTZ
+    }
+
+    class Skill {
+        <<技能>>
+        workspace_id : UUID
+        name : TEXT
+        description : TEXT
+        content : TEXT
+        config : JSONB
+    }
+
+    class SkillFile {
+        <<技能文件>>
+        skill_id : UUID
+        path : TEXT
+        content : TEXT
+    }
+
+    class AgentSkill {
+        <<智能体-技能>>
+        agent_id : UUID
+        skill_id : UUID
+    }
+
+    %% ===== 项目 / 工单 =====
+    class Project {
+        <<项目>>
+        workspace_id : UUID
+        title : TEXT
+        status : planned|in_progress|paused|completed|cancelled
+        lead_type : member|agent
+        lead_id : UUID
+        priority : TEXT
+    }
+
+    class Issue {
+        <<工单>>
+        workspace_id : UUID
+        project_id : UUID
+        number : INT
+        title : TEXT
+        status : backlog|todo|in_progress|in_review|done|blocked|cancelled
+        priority : urgent|high|medium|low|none
+        assignee_type : member|agent
+        assignee_id : UUID
+        creator_type : member|agent
+        creator_id : UUID
+        parent_issue_id : UUID
+        acceptance_criteria : JSONB
+        context_refs : JSONB
+        due_date : TIMESTAMPTZ
+    }
+
+    class IssueLabel {
+        <<工单标签>>
+        workspace_id : UUID
+        name : TEXT
+        color : TEXT
+    }
+
+    class IssueDependency {
+        <<工单依赖>>
+        issue_id : UUID
+        depends_on_issue_id : UUID
+        type : blocks|blocked_by|related
+    }
+
+    class IssueSubscriber {
+        <<工单订阅者>>
+        issue_id : UUID
+        user_type : member|agent
+        user_id : UUID
+        reason : creator|assignee|commenter|mentioned|manual
+    }
+
+    class IssueReaction {
+        <<工单表情>>
+        issue_id : UUID
+        actor_type : member|agent
+        actor_id : UUID
+        emoji : TEXT
+    }
+
+    class Comment {
+        <<评论>>
+        issue_id : UUID
+        workspace_id : UUID
+        parent_id : UUID
+        author_type : member|agent
+        author_id : UUID
+        type : comment|status_change|progress_update|system
+        content : TEXT
+    }
+
+    class CommentReaction {
+        <<评论表情>>
+        comment_id : UUID
+        actor_type : member|agent
+        actor_id : UUID
+        emoji : TEXT
+    }
+
+    class Attachment {
+        <<附件>>
+        workspace_id : UUID
+        issue_id : UUID
+        comment_id : UUID
+        uploader_type : member|agent
+        filename : TEXT
+        url : TEXT
+        content_type : TEXT
+        size_bytes : BIGINT
+    }
+
+    %% ===== 任务执行 =====
+    class AgentTaskQueue {
+        <<任务队列>>
+        agent_id : UUID
+        runtime_id : UUID
+        issue_id : UUID?
+        chat_session_id : UUID?
+        status : queued|dispatched|running|completed|failed|cancelled
+        priority : INT
+        context : JSONB
+        session_id : TEXT
+        work_dir : TEXT
+        result : JSONB
+        error : TEXT
+    }
+
+    class TaskMessage {
+        <<任务消息流>>
+        task_id : UUID
+        seq : INT
+        type : TEXT
+        tool : TEXT
+        content : TEXT
+        input : JSONB
+        output : TEXT
+    }
+
+    class TaskUsage {
+        <<任务用量>>
+        task_id : UUID
+        provider : TEXT
+        model : TEXT
+        input_tokens : BIGINT
+        output_tokens : BIGINT
+        cache_read_tokens : BIGINT
+        cache_write_tokens : BIGINT
+    }
+
+    %% ===== 聊天 =====
+    class ChatSession {
+        <<聊天会话>>
+        workspace_id : UUID
+        agent_id : UUID
+        creator_id : UUID
+        title : TEXT
+        session_id : TEXT
+        work_dir : TEXT
+        status : active|archived
+    }
+
+    class ChatMessage {
+        <<聊天消息>>
+        chat_session_id : UUID
+        role : user|assistant
+        content : TEXT
+        task_id : UUID
+    }
+
+    %% ===== 守护进程 =====
+    class DaemonConnection {
+        <<守护进程连接>>
+        agent_id : UUID
+        daemon_id : TEXT
+        status : connected|disconnected
+        last_heartbeat_at : TIMESTAMPTZ
+        runtime_info : JSONB
+    }
+
+    class DaemonPairingSession {
+        <<守护进程配对>>
+        token : TEXT UNIQUE
+        daemon_id : TEXT
+        device_name : TEXT
+        runtime_name : TEXT
+        runtime_type : TEXT
+        workspace_id : UUID
+        approved_by : UUID
+        status : pending|approved|claimed|expired
+        expires_at : TIMESTAMPTZ
+    }
+
+    class DaemonToken {
+        <<守护进程令牌>>
+        token_hash : TEXT UNIQUE
+        workspace_id : UUID
+        daemon_id : TEXT
+        expires_at : TIMESTAMPTZ
+    }
+
+    %% ===== 收件箱 / 审计 / 个性化 =====
+    class InboxItem {
+        <<收件箱条目>>
+        workspace_id : UUID
+        recipient_type : member|agent
+        recipient_id : UUID
+        type : TEXT
+        severity : action_required|attention|info
+        issue_id : UUID
+        title : TEXT
+        body : TEXT
+        read : BOOL
+        archived : BOOL
+    }
+
+    class ActivityLog {
+        <<活动日志>>
+        workspace_id : UUID
+        issue_id : UUID
+        actor_type : member|agent|system
+        actor_id : UUID
+        action : TEXT
+        details : JSONB
+    }
+
+    class PinnedItem {
+        <<侧栏置顶>>
+        workspace_id : UUID
+        user_id : UUID
+        item_type : issue|project
+        item_id : UUID
+        position : FLOAT
+    }
+
+    %% ============================================================
+    %% 关系
+    %% ============================================================
+
+    %% ---- 身份与访问 ----
+    User "1" *-- "0..*" Member : 加入
+    Workspace "1" *-- "0..*" Member : 包含
+    User "1" *-- "0..*" PersonalAccessToken : 拥有
+
+    %% ---- 智能体 / 运行时 / 技能 ----
+    Workspace "1" *-- "0..*" Agent : 注册
+    Workspace "1" *-- "0..*" AgentRuntime : 注册
+    Agent "0..*" --> "1" AgentRuntime : 绑定
+    User "0..1" <.. "0..*" Agent : owner
+    Workspace "1" *-- "0..*" Skill : 维护
+    Skill "1" *-- "0..*" SkillFile : 包含
+    Agent "1" -- "0..*" AgentSkill
+    Skill "1" -- "0..*" AgentSkill
+
+    %% ---- 项目 / 工单 ----
+    Workspace "1" *-- "0..*" Project : 包含
+    Workspace "1" *-- "0..*" Issue : 包含
+    Project "0..1" o-- "0..*" Issue : 归属
+    Issue "0..1" o-- "0..*" Issue : 父子工单
+    Workspace "1" *-- "0..*" IssueLabel : 定义
+    Issue "0..*" -- "0..*" IssueLabel : 打标
+    Issue "1" *-- "0..*" IssueDependency : 依赖关系
+    Issue "1" *-- "0..*" IssueSubscriber : 订阅
+    Issue "1" *-- "0..*" IssueReaction : 表情
+    Issue "1" *-- "0..*" Comment : 评论
+    Comment "0..1" o-- "0..*" Comment : 回复
+    Comment "1" *-- "0..*" CommentReaction : 表情
+    Issue "0..1" o-- "0..*" Attachment : 附件
+    Comment "0..1" o-- "0..*" Attachment : 附件
+
+    %% 多态分派/作者（关联）
+    Member "0..*" ..> Issue : assignee/creator
+    Agent  "0..*" ..> Issue : assignee/creator
+    Member "0..*" ..> Comment : author
+    Agent  "0..*" ..> Comment : author
+
+    %% ---- 任务执行 ----
+    Agent "1" *-- "0..*" AgentTaskQueue : 派发
+    AgentRuntime "1" *-- "0..*" AgentTaskQueue : 承载
+    Issue "0..1" o-- "0..*" AgentTaskQueue : 关联工单
+    AgentTaskQueue "1" *-- "0..*" TaskMessage : 消息流
+    AgentTaskQueue "1" *-- "0..*" TaskUsage : 用量
+
+    %% ---- 聊天 ----
+    Workspace "1" *-- "0..*" ChatSession : 包含
+    Agent "1" *-- "0..*" ChatSession : 对话
+    User "1" *-- "0..*" ChatSession : 发起
+    ChatSession "1" *-- "0..*" ChatMessage : 消息
+    ChatSession "0..1" o-- "0..*" AgentTaskQueue : 触发任务
+
+    %% ---- 守护进程 ----
+    Agent "1" *-- "0..*" DaemonConnection : 心跳
+    Workspace "1" *-- "0..*" DaemonPairingSession : 配对
+    Workspace "1" *-- "0..*" DaemonToken : 凭据
+    User "0..1" <.. "0..*" DaemonPairingSession : approved_by
+
+    %% ---- 收件箱 / 审计 / 个性化 ----
+    Workspace "1" *-- "0..*" InboxItem : 投递
+    InboxItem "0..*" ..> Issue : 关联
+    Workspace "1" *-- "0..*" ActivityLog : 审计
+    ActivityLog "0..*" ..> Issue : 关联
+    Workspace "1" *-- "0..*" PinnedItem
+    User "1" *-- "0..*" PinnedItem : 个人置顶
+
+    note for Workspace "工作区为多租户根：几乎所有业务表都通过 workspace_id 隔离"
+    note for AgentTaskQueue "任务可由 Issue 或 ChatSession 触发；issue_id/chat_session_id 二者其一非空"
+    note for AgentRuntime "运行时与 Agent 解耦：一个运行时可承载多个 Agent 的任务"
+    note for IssueSubscriber "user_type/user_id 为多态主体（成员或智能体）"

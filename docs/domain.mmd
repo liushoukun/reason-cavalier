@@ -1,0 +1,57 @@
+classDiagram
+    direction TB
+
+    class Workspace {
+        <<工作区>>
+    }
+
+    class Repository {
+        <<代码仓库>>
+    }
+
+    class Member {
+        <<成员>>
+    }
+
+    class Agent {
+        <<智能体>>
+    }
+
+    class Doc {
+        <<文档>>
+    }
+
+    class Workflow {
+        <<工作流>>
+    }
+
+    class Task {
+        <<任务>>
+    }
+
+    class Run {
+        <<运行>>
+    }
+
+    class Timeline {
+        <<时间线>>
+    }
+
+    Workspace "1" *-- "0..*" Repository : 包含
+    Workspace "1" *-- "0..*" Member : 包含
+    Workspace "1" *-- "0..*" Agent : 注册/可用
+    Workspace "1" *-- "0..*" Doc : 包含
+    Workspace "1" *-- "0..*" Workflow : 包含
+    Workspace "1" *-- "1" Timeline : 全域时间线
+
+    Workflow "1" *-- "0..*" Task : 编排
+    Task "1" *-- "0..*" Run : 执行记录
+
+    Member "0..*" ..> Task : 分配/参与
+    Agent "0..*" ..> Task : 执行
+    Agent "0..*" ..> Run : 产生
+
+    Repository "0..*" ..> Doc : 关联
+    Doc "0..*" ..> Task : 引用
+
+    note for Timeline "时间线模块：汇聚当前工作区内可记录的各类操作（审计与回放）"

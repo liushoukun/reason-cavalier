@@ -143,9 +143,9 @@ notes: 已定位超时发生在 checkout API 重试逻辑
 - `stages` 至少包含 1 个阶段
 - 每个阶段必须包含 `status` 和 `artifacts` 字段
 
-## 6. 宿主兼容约定（Open Plugins）
+## 6. Runtime 兼容约定（Open Plugins · 对齐 Multica Runtimes）
 
-不同宿主只负责把自身动作映射成统一 `status`，不直接定义新的核心状态机。
+不同 **Runtime**（如 Cursor / Claude Code / Codex 等工具入口）只负责把自身动作映射成统一 `status`，不直接定义新的核心状态机。
 
 推荐状态映射：
 
@@ -158,4 +158,4 @@ notes: 已定位超时发生在 checkout API 重试逻辑
 
 ---
 
-这份规范是任务系统的首发基线：先保证“文件可读、状态可恢复、宿主可兼容”，后续再按真实使用场景增量扩展。
+这份规范是任务系统的首发基线：先保证「文件可读、状态可恢复、**多 Runtime** 可兼容」，后续再按真实使用场景增量扩展。
